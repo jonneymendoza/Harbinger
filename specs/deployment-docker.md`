@@ -1,0 +1,57 @@
+# Feature Specification: Deployment & Infrastructure (Docker)
+
+## 1. Overview
+To ensure consistency across different environments (Local $\rightarrow$ TrueNAS $\rightarrow$ AWS), the entire system is containerized using Docker. This approach eliminates "it works on my machine" issues and simplifies scaling and migration.
+
+## 2. Architecture Design
+The project will utilize a **multi-container architecture** managed via `docker-compose`.
+
+### A. Container Breakdown
+1.  **`backend-api`**: The Node.js/Express server, including the Playwright scraping engine.
+2.  **`frontend-app`**: The Next.js application (pre-rendered for production).
+3.  **`mongodb`**: The official MongoDB image for data persistence.
+
+## 3. Technical Implementation
+
+### A. Dockerfile Strategies
+*   **Backend:** Uses a Node.js base image. Crucially, it must install the **Playwright system dependencies** (browsers and OS libraries) to allow headless Chrome/Firefox to run inside Linux.
+    *   `FROM mcr.microsoft.com/playwright:focal` or similar official Playwright image.
+*   **Frontend:** Uses a multi-stage build.
+    *   *Stage 1 (Build):* Installs dependencies and runs `npm run build`.
+    *   *Stage 2 (Run):* Copy only the `.next` build artifacts and node_modules to a slim image to reduce size.
+
+### B. Docker Compose Configuration (`docker-compose.yml`)
+The compose file will define:
+*   **Networks:** A shared `backend-net` allowing the frontend and backend to communicate via container names (e.g., `http://backend-api:5000`).
+*   **Volumes:** 
+    *   `mongo-data`: Persistent volume mapping `/data/db` on the host to ensure articles and users aren't deleted when containers restart.
+*   **Environment Variables:** A `.env` file injected into both services containing keys, secrets, and DB URIs.
+
+## 4. Environment Variable Registry (`.env`)
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `MONGO_URI` | MongoDB connection string | `mongodb://mongodb:27017/news-aggregator` |
+| `JWT_SECRET` | Secret key for token signing | `randomly_generated_long_string` |
+| `ADMIN_USER` | Initial admin username | `admin@example.com` |
+| `ADMIN_PASS` | Initial admin password (hashed) | `$2b$10$...` |
+| `GOOGLE_CLIENT_ID` | OAuth Client ID | `xxxxx.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET`| OAuth Client Secret | `GOCSPX-xxxxx` |
+| `NEXT_PUBLIC_API_URL` | API endpoint for frontend | `http://api.newsaggregator.com/api` |
+
+## 5. Deployment Roadmap
+
+### Phase 1: TrueNAS Testing (Self-Hosted)
+*   **Method:** Install Docker and Docker Compose on the TrueNAS scale/core system.
+*   **Execution:** `docker-compose up -d`.
+*   **Networking:** Local IP access or simple reverse proxy (like Nginx Proxy Manager) to expose the site via a local domain.
+
+### Phase 2: Cloud Migration (AWS)
+When moving to production, the containerized nature allows two paths:
+1.  **Low Complexity (ECS/EC2):** Use **Amazon ECS (Elastic Container Service)** with Fargate. This removes the need to manage servers; AWS simply runs the containers.
+2.  **High Scalability (EKS):** Use **Amazon EKS (Kubernetes)** if the number of target sources or users grows significantly, allowing for auto-scaling nodes.
+3.  **Database:** Replace the MongoDB container with **MongoDB Atlas** (Managed DB) for better backups and reliability.
+
+## 6. Maintenance & Backup
+*   **Backups:** Daily dumps of the `mongo-data` volume using `mongodump`.
+*   **Logs:** Use Docker's `json-file` logging driver, accessible via `docker compose logs -f`.
+*   **Updates:** Update images via `docker compose pull && docker compose up -d` to deploy new features without downtime.
