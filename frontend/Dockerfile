@@ -32,4 +32,6 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend-api:5000}
 EXPOSE 3000
 ENV PORT=3000
 
+RUN npm install -g pnpm
+
 CMD ["pnpm", "start"]

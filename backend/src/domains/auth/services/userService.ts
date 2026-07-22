@@ -1,13 +1,17 @@
 import type { Profile } from 'passport';
 import { User, IUser } from '@domains/auth/models/User';
 
-export interface OAuthProfile extends Omit<Profile, 'emails'> {
-  emails?: Array<{ value: string }>;
+export interface OAuthProfile {
+  id?: string;
   displayName?: string;
+  emails?: Array<{ value: string }>;
+  photos?: Array<{ value: string }>;
+  _json?: Record<string, any>;
+  provider?: 'google' | 'apple' | 'facebook' | 'local';
 }
 
 function getProviderName(profile: OAuthProfile): 'google' | 'apple' | 'facebook' | 'local' {
-  const raw = profile._json??.provider || profile.provider || '';
+  const raw = ((profile as any)._json?.provider || profile.provider || '');
   return (raw === 'google' || raw === 'apple' || raw === 'facebook' ? raw : 'local') as 'google' | 'apple' | 'facebook' | 'local';
 }
 

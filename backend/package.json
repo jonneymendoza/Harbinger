@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "ts-node-dev --respawn src/app.ts",
-    "build": "tsc",
-    "start": "node dist/src/app.js",
+    "build": "tsc && tsc-alias",
+    "start": "tsc-alias -r node dist/app.js",
     "seed-admin": "npx ts-node -r tsconfig-paths/register src/infrastructure/auth/adminBootstrap.ts"
   },
   "dependencies": {
@@ -36,8 +36,9 @@
     "@types/passport-facebook": "^3.0.3",
     "@types/passport-google-oauth20": "^2.0.16",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
     "ts-node-dev": "^2.0.0",
+    "tsc-alias": "^1.8.10",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3"
   }
 }

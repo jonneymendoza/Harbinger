@@ -2,14 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import mongooseSanitize from 'express-mongo-sanitize';
+import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 import { connectDB } from '@infrastructure/mongoose';
-import { authRoutes } from '@domains/auth/routes/index';
+import authRoutes from '@domains/auth/routes/index';
 import healthRouter from '@domains/health/route';
 
 const app = express();

@@ -25,6 +25,7 @@ export function configureAppleStrategy(): void {
         keyID: APPLE_KEY_ID,
         privateKeyLocation: privateKeyContent,
         callbackURL: APPLE_CALLBACK_URL,
+        passReqToCallback: false as any,
       },
       async (accessToken: string, refreshToken: string, idToken: string, profile: Profile, done: Function) => {
         try {

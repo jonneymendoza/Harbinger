@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import passport from 'passport';
-import { signjwt, AuthPayload } from '@infrastructure/auth/jwtService';
+import { signJWT, AuthPayload } from '@infrastructure/auth/jwtService';
 import { AppError } from '@shared/errors/appError';
 
 const router = Router();
@@ -30,7 +30,7 @@ function createCallback(provider: string) {
         role: user.role,
       };
 
-      const token = signjwt(payload);
+      const token = signJWT(payload);
 
       res.json({
         success: true,

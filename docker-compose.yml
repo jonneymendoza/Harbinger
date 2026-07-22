@@ -25,15 +25,15 @@ services:
         condition: service_healthy
     networks:
       - backend-net
-    expose:
-      - "5000"
+    ports:
+      - "8082:5000"
 
   frontend-app:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=http://backend-api:5000/api
+        - NEXT_PUBLIC_API_URL=http://host.docker.internal:8082/api
     container_name: harbingfrontend
     restart: always
     depends_on:
@@ -41,8 +41,8 @@ services:
     networks:
       - frontend-net
       - backend-net
-    expose:
-      - "3000"
+    ports:
+      - "3300:3000"
 
 volumes:
   mongodata:

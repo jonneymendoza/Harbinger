@@ -2,14 +2,6 @@ import { verifyToken, AuthPayload } from '@infrastructure/auth/jwtService';
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '@shared/errors/appError';
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthPayload;
-    }
-  }
-}
-
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
@@ -21,7 +13,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   try {
     const decoded = verifyToken(token);
-    req.user = decoded;
+    (req as any).user = decoded;
     next();
   } catch {
     return next(AppError.unauthorized('Invalid or expired token'));
@@ -30,11 +22,12 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
 export function checkRole(roles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    const user = (req as any).user as AuthPayload | undefined;
+    if (!user) {
       return next(AppError.unauthorized('Authentication token is required'));
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!roles.includes(user.role)) {
       return next(AppError.forbidden('Insufficient permissions'));
     }
 

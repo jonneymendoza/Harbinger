@@ -13,8 +13,7 @@ export interface AuthPayload {
 }
 
 export function signJWT(payload: AuthPayload): string {
-  const options: SignOptions = { algorithm: 'HS256' };
-  return jwt.sign(payload, JWT_SECRET, { ...options, expiresIn: JWT_EXPIRY });
+  return jwt.sign(payload, JWT_SECRET as any, { algorithm: 'HS256', expiresIn: JWT_EXPIRY as any });
 }
 
 export function verifyToken(token: string): AuthPayload {

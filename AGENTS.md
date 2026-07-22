@@ -18,6 +18,10 @@ Decoupled Client-Server-Database architecture:
 - **Auth Flow:** Authentication uses OAuth 2.0 for social logins and JWTs for session management. Admin routes require a `ROLE_ADMIN` claim in the JWT.
 - **CORS:** Ensure API origins are strictly managed to allow only the frontend and future mobile app access.
 
+## API Contract
+- **Swagger Docs:** All API endpoints are documented in `/backend/SWAGGER.md` (machine-readable OpenAPI YAML included).
+- **Rule:** Any time a backend route is amended, added, or removed, SWAGGER.md must be updated to match before the change is considered complete.
+
 ## Project Structure Reference
 - `/PRD.md`: High-level requirements.
 - `/specs/`: Detailed feature specifications (the "How" guide).
