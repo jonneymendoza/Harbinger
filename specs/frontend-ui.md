@@ -1,7 +1,23 @@
 # Feature Specification: Web Frontend UI/UX
 
-## 1. Overview
-The frontend is a high-performance, responsive web application built with Next.js and Tailwind CSS. It serves as the primary consumption layer for users to discover news and manage their bookmarks via the Backend API.
+## 1. Architecture Context
+
+This frontend follows **Feature-Sliced Design (FSD)** with React Server Components, as defined in `PRD.md §6.B`. The codebase is organized into four horizontal slices:
+
+| Slice | Responsibility | Examples Used Here |
+|---|---|---|
+| **app/** | Next.js App Router pages and layout groups | `app/(public)/page.tsx` (Home Feed), `app/article/[id]/page.tsx` (Article) |
+| **features/** | Vertical feature slices: UI components + data hooks + state/context | `feed-feature/`, `auth-feature/`, `bookmark-feature/` |
+| **entities/** | Domain model representations | `entities/article/` for article card variants |
+| **shared/** | Cross-cutting reusable code (dumb primitives, API client) | `shared/ui/`, `shared/api/` fetch wrapper |
+
+### Architecture Rules
+- Each feature (`features/*`) is a self-contained vertical slice. It owns its UI components, data hooks (`api/`), and server action/state logic (`lib/`). No other feature module reaches into another feature's internals.
+- **React Server Components** are the default for page-level data fetching. `"use client"` is used only where interactivity (hooks, event handlers) is required.
+- `shared/ui/` contains only dumb framework primitives (Button, Card, Input). All business logic lives in feature modules.
+- `shared/api/` has a single fetch wrapper that injects JWT tokens and maps the standard backend response (`success/data/error`) into hook-friendly data.
+
+---
 
 ## 2. Design System & Aesthetics
 

@@ -1,6 +1,21 @@
 # Feature Specification: Backend Scraping Engine
 
-## 1. Overview
+## 1. Architecture Context
+
+This document specifies the scraping engine, which is a domain module within the backend's **Clean Architecture (Hexagonal / Ports & Adapters)** pattern. The scraper exists entirely within `domains/` and `infrastructure/` layers described in `PRD.md §6.A`:
+
+- **`domains/news/interfaces/IScraperStrategy.ts`** — Port (interface) defining the contract for scrapers
+- **`infrastructure/scraper/`** — Adapters implementing the port (Playwright implementation)
+- **`domains/news/newsService.ts`** — Use case class orchestrating the extraction pipeline
+
+### Architecture Rules
+- The scraper use-case depends only on `IScraperStrategy`, not on Playwright directly.
+- All repository writes go through interfaces in `domains/*/interfaces/`. The news controller and scraper service depend only on these contracts, never on Mongoose.
+- Routes live in `domains/*/route.ts` (Express routers) — thin layers that parse requests and delegate to services.
+
+---
+
+## 2. Overview
 The Scraping Engine is responsible for the autonomous discovery, extraction, and cleaning of news articles from target sources defined in the database. It converts raw HTML into a structured JSON snapshot stored in MongoDB.
 
 ## 2. Technical Implementation
