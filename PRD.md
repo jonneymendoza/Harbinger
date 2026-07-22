@@ -78,17 +78,97 @@ The system will follow a **Client-Server-Database** architecture with an asynchr
 *   `PUT /api/admin/sources/:id` $\rightarrow$ Update source URL or configurations.
 *   `DELETE /api/admin/sources/:id` $\rightarrow$ Remove a target website.
 
-## 6. Technical Stack
-| Layer | Technology | Reason |
-| :--- | :--- | :--- |
-| **Backend** | Node.js / Express | Rapid development, native JS support for scrapers. |
-| **Scraping** | Playwright | Handles Dynamic/JS-heavy content of target sites. |
-| **Database** | MongoDB | Schema-less flexibility for varying article structures. |
-| **Frontend** | Next.js / Tailwind | SSR for SEO, fast performance, and easy Dark Mode. |
-| **Auth** | Passport.js / OAuth 2.0 | Standardized implementation of Social logins. |
-| **Container** | Docker / Docker Compose | Ease of deployment on TrueNAS $\rightarrow$ AWS. |
+## 6. Technical Stack & Architecture
 
-## 7. Deployment Roadmap
+### A. Backend: Clean Architecture (Hexagonal / Ports & Adapters)
+
+The backend follows **Clean Architecture** to separate concerns into concentric layers:
+
+| Layer | Responsibility | Examples in This Project |
+|---|---|---|
+| **Domains (Entities & Use Cases)** | Core business logic, independent of all frameworks | News service, Auth service, Scraper pipeline use cases |
+| **Interfaces (Ports)** | Contracts that adapters must implement | `INewsRepository`, `IBookmarkRepository`, `IScraper`|
+| **Infrastructure (Adapters)** | External framework integrations | Mongoose repositories, Playwright scraper, JWT token service, Passport strategies |
+| **Presentation** | HTTP layer only — route definitions and request/response mapping | Express controllers and routers |
+
+**Architecture rules:**
+- Domains know nothing about infrastructure or presentation layers.
+- Interfaces (ports) in `domains/*/interfaces/` are one-directional contracts. Infrastructure implements them; controllers depend only on the interfaces.
+- The scraper pipeline is a **use case class**, not a controller — fully testable without MongoDB or Playwright running.
+- Each feature (`news`, `bookmarks`, `sources`, `auth`) is a self-contained domain module.
+
+```
+backend/src/
+├── domains/                     # Feature modules (each has controller, service, interfaces/)
+│   ├── news/
+│   │   ├── controller.ts
+│   │   ├── route.ts
+│   │   ├── newsService.ts
+│   │   └── interfaces/
+│   │       ├── INewsRepository.ts
+│   │       └── IScraperStrategy.ts
+│   ├── bookmarks/
+│   ├── sources/
+│   └── auth/
+├── infrastructure/              # Adapters implementing ports
+│   ├── repositories/            # Mongoose implementations of repository interfaces
+│   ├── scraper/                 # Playwright impl, content cleansing, cron scheduler
+│   ├── auth/                    # Passport strategies (Google, Apple, Facebook), JWT service
+│   └── middleware/              # Auth guard, admin role check
+└── shared/
+    └── errors/                  # Standardized error classes mapped to HTTP codes
+```
+
+### B. Frontend: Feature-Sliced Design (FSD) + React Server Components
+
+The frontend follows **Feature-Sliced Design** vertically sliced by business feature, layered with React Server Components for data fetching:
+
+| Slice | Responsibility | Location in `/src/` |
+|---|---|---|
+| **app/** | Next.js App Router page routes and layouts | `app/(public)/`, `app/(auth)/login/`, `app/(protected)/bookmarks/`, `app/(admin)/admin/` |
+| **features/** | Self-contained vertical slices: UI components, API hooks, server actions, context/state | `features/feed-feature/`, `features/auth-feature/`, `features/bookmark-feature/`, `features/admin-feature/`, `features/theme-feature/` |
+| **entities/** | Domain models and their representations | `entities/article/`, `entities/source/` |
+| **shared/** | Cross-cutting reusable code: UI primitives, API client, config constants | `shared/ui/`, `shared/api/`, `shared/lib/` |
+
+**Architecture rules:**
+- Each `features/*` owns its own UI components, data hooks (`useArticles`, `useBookmarks`), and server actions — complete vertical slice. No horizontal splitting of feature concerns.
+- `shared/` contains only dumb, framework primitives (Button, Card) and the API client wrapper — zero business logic.
+- React Server Components handle all server-side data fetching in page components. `"use client"` is used **only** where hooks or interactivity is required.
+- SWR (`@swr/swr`) for client-side caching of API responses across navigation. `next/image` for automatic image optimization and lazy loading.
+- Theme toggled via `next-themes`, dark mode configured with Tailwind's `class` strategy per `specs/frontend-ui.md`.
+
+```
+frontend/src/
+├── app/                              # Next.js App Router pages & layout groups
+│   ├── (public)/page.tsx             # Home / Feed
+│   ├── article/[id]/page.tsx         # Article detail (RSC data fetch)
+│   └── ...
+├── features/                         # Vertical slices (each has ui/, api/, lib/)
+│   ├── feed-feature/ui/NewsGrid.tsx
+│   ├── auth-feature/api/useAuth.ts
+│   ├── bookmark-feature/
+│   ├── admin-feature/AdminGuard.tsx
+│   └── theme-feature/ThemeToggle.tsx
+├── entities/article/                 # Article type + card variants
+└── shared/ui/Button.tsx              # Dumb primitives only
+```
+
+### C. Technology Stack Reference
+
+| Layer | Technology | Reason |
+|---|---|---|
+| **Backend Runtime** | Node.js / Express | Rapid development, native JS for Playwright scrapers |
+| **Backend Architecture** | Clean Architecture (Ports & Adapters) | Isolate business logic from MongoDB, Playwright, and HTTP. Each feature is independently testable and swappable. |
+| **Scraping Engine** | Playwright + node-cron | Headless browser automation for JS-heavy sources; scheduled every 60 minutes |
+| **Database** | MongoDB (Mongoose) | Schema-less storage for varying article structures; snapshot-based persistence |
+| **Auth** | Passport.js + JWT (HS256) | OAuth 2.0 for Google/Apple/Facebook; stateless token validation on all routes |
+| **Frontend Framework** | Next.js App Router | React Server Components, built-in image optimization, SSR for SEO |
+| **Frontend Architecture** | Feature-Sliced Design + RSC | Vertical feature slices with reusable primitives; server-side data fetching |
+| **Styling** | Tailwind CSS + next-themes | Utility-first styling with dark/light mode support |
+| **Data Fetching** | Server actions (RSC) + SWR | Cached client-side navigation, skeleton loading states |
+| **Container** | Docker Compose → AWS ECS/EKS | Consistent local/dev/prod environments; migration path to cloud |
+
+## 7. Proposed API Schema
 1.  **Phase 1 (Development):** Local environment setup and Scraper validation.
 2.  **Phase 2 (Testing):** Deploy Backend, DB, and Frontend via Docker Compose on **TrueNAS**.
 3.  **Phase 3 (Cloud Migration):** Transition to AWS (ECS/EKS) or similar infrastructure for production scaling.

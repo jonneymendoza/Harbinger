@@ -1,0 +1,129 @@
+# Implementation Checklist
+
+## Phase 1: Foundation [✅ COMPLETE]
+
+- [x] `docker-compose.yml` — 3 services: mongodb, backend-api, frontend-app + networks/volumes
+- [x] Backend directory scaffold (Clean Architecture structure)
+- [x] Dockerfile for backend (Playwright deps)
+- [x] Multi-stage Dockerfile for frontend
+- [x] `.env.example` with all variables (MongoDB, JWT, Admin bootstrap, OAuth, CORS ports)
+- [x] `DEVELOPMENT.md` — local dev setup instructions, troubleshooting guide
+
+**What this gives you:** Run `docker compose up --build`, hit `localhost:3000`, press a button. Zero functionality but the stack is wired end-to-end.
+
+---
+
+## Phase 2: Authentication [🔴 TODO]
+
+### Backend
+- [ ] Express skeleton with health route (`GET /api/health`)
+- [ ] Mongoose connection setup (`infra/repositories/mongoConn.ts`)
+- [ ] `users` collection schema (per `specs/api-auth.md §3`)
+- [ ] Admin bootstrap middleware — seeds admin account on first boot (uses `ADMIN_USER`/`ADMIN_PASS`)
+- [ ] JWT service (`infra/auth/jwtService.ts`) — HS256 signing, 30-day expiry
+- [ ] Passport strategy configs:
+  - [ ] `passport-google-oauth20` → `/api/auth/google/callback`
+  - [ ] `passport-apple` → `/api/auth/apple/callback`
+  - [ ] `passport-facebook` → `/api/auth/facebook/callback`
+- [ ] Login initiation route — `POST /api/auth/:provider` returns OAuth URL (popup flow)
+- [ ] Callback handlers — exchange code for profile, create/update user in Mongo, sign JWT
+- `checkRole("ADMIN")` middleware (`infra/middleware/adminCheck.ts`)
+
+### Frontend
+- [ ] Next.js app scaffold + Tailwind config (`tailwind.config.ts`, `_app.tsx`)
+- [ ] `next-themes` config for dark/light mode (per `specs/frontend-ui.md §2.A`)
+- [ ] Login page UI — centered card with 3 social buttons (`features/auth-feature/ui/AuthButtons.tsx`)
+- [ ] API client wrapper (`shared/api/client.ts`) — singleton fetch, JWT injection, error mapping to `{success,data,error}` response format
+- [ ] Popup window logic for OAuth flow (listens for `message` event from popup)
+
+**What this gives you:** Users can log in with Google/Apple/Facebook, get a JWT token, and hit protected routes. Verified via curl or Postman — no UI polish yet.
+
+---
+
+## Phase 3: Scraping Engine [🔴 TODO]
+
+### Backend
+- [ ] `IScraperStrategy` interface (`domains/news/interfaces/`)
+- [ ] Playwright scraper adapter (`infra/scraper/playwrightScraper.ts`)
+- [ ] Content cleaner — strips `<script>`/`<style>`, normalizes dates to ISO 8601, resolves relative image URLs (per `specs/backend-scrapper.md §2.E`)
+- [ ] User agent rotation middleware
+- [ ] Extraction pipeline use-case (`domains/news/scrapeNewsService.ts`) — orchestrates Source Retrieval → Navigation → Link Discovery → Deep Scraping → Cleaning → Upsert (matches `PRD.md §3.A` exactly)
+- [ ] Sources collection schema (`specs/backend-scrapper.md §3`)
+- [ ] Articles collection schema + validation
+- [ ] Request throttling — random 1–5s delay between scrapes, max 3 concurrent pages
+- [ ] Cron job with `node-cron` — every 60 minutes, fetches active sources from DB
+
+**What this gives you:** Mongo has article documents. Verify by querying `db.articles.find()` directly — no HTTP endpoints exist yet.
+
+---
+
+## Phase 4: API Endpoints [🔴 TODO]
+
+### All endpoints (per `specs/api-endpoints.md`)
+- [ ] **Public News**
+  - [ ] `GET /api/news` — paginated article list with standard response wrapper (limit-offset pagination)
+  - [ ] `GET /api/news/:id` — full article with hero image, contentImages[], fullContent
+- [ ] **Bookmarks (requires JWT)**
+  - [ ] `POST /api/bookmarks` — `{articleId}`
+  - [ ] `GET /api/bookmarks` — user's saved articles
+  - [ ] `DELETE /api/bookmarks/:id` — remove bookmark
+- [ ] **Admin Sources (requires ADMIN role)**
+  - [ ] `GET /api/admin/sources`
+  - [ ] `POST /api/admin/sources` — add source with CSS selectors
+  - [ ] `PUT /api/admin/sources/:id`
+  - [ ] `DELETE /api/admin/sources/:id`
+  - [ ] `POST /api/admin/sources/test` — live test endpoint that spins up a temporary Playwright instance with the provided selectors
+
+**What this gives you:** Every route in `specs/api-endpoints.md` working, tested with curl. Standard response wrapper (`{success,data,error}`) applied everywhere.
+
+---
+
+## Phase 5: Frontend Public Pages [🔴 TODO]
+
+- [ ] Next.js App Router pages scaffold:
+  - [ ] `(public)/page.tsx` — Home/Feed page
+  - [ ] `article/[id]/page.tsx` — Article detail view
+  - [ ] Layout structure with nav bar (logo, dark mode toggle, login/profile button)
+- [ ] Shared UI primitives (`shared/ui/`) — Button, Card, Input per Tailwind theme spec
+- [ ] Data fetching:
+  - [ ] Server Components for initial page data loads (per `PRD.md §6.B RSC rules`)
+  - [ ] SWR hooks (`features/feed-feature/api/useArticles.ts`) for cached navigation
+  - [ ] Skeleton loading states (gray pulsing placeholders, per `specs/frontend-ui.md §4.B`)
+- [ ] News grid — responsive CSS grid (3–4 cols desktop, 2 tablet, 1 mobile)
+- [ ] Article tile component (thumbnail image + title + source + date, hover zoom effect)
+- [ ] Article detail page — hero image, rendered HTML content, back-to-feed button
+
+**What this gives you:** Visually browse articles with dark mode. Skeleton loading states per spec. Fully responsive across breakpoints.
+
+---
+
+## Phase 6: Protected + Admin UI [🔴 TODO]
+
+- [ ] `/auth/login` page — social login buttons complete (redirects → popup → receive JWT → store in localStorage)
+- [ ] Bookmarks page (`protected/bookmarks/page.tsx`) — filtered grid with unsave action
+- [ ] Auth state management (`features/auth-feature/lib/authContext.tsx`) — stores token + user role globally
+- [ ] `AdminGuard` HOC / route wrapper (per `specs/admin-panel.md:8`) — redirects non-admins to `/auth/login`
+- [ ] Admin dashboard (`admin/page.tsx`):
+  - [ ] Sources table (name, URL, active status, date added)
+  - [ ] Source editor form with CSS selector inputs + validation
+  - [ ] "Test Scrape" button → triggers `POST /api/admin/sources/test` → shows preview of scraped title and image
+  - [ ] Delete source confirmation UI
+- [ ] Dark mode toggle (`features/theme-feature/ui/ThemeToggle.tsx`) — persists via `next-themes`
+
+**What this gives you:** Complete application. Authenticate → browse feed → bookmark articles → manage scraping sources as admin. All specs fully implemented and tested.
+
+---
+
+## Parallel Execution Summary
+
+| Phase | Can run in parallel? | Depends on |
+|---|---|---|
+| 1 (Foundation) | No — base layer | None |
+| 2 (Auth) | ✅ Yes, with Phase 3 | Mongoose users collection ✓ |
+| 3 (Scraper) | ✅ Yes, with Phase 2 | Mongoose articles/sources collections ✓ |
+| 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
+| 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
+| 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
+
+**Critical path:** 1 → 2 → 3 → 4 → 5 → 6
+**Ways to speed up:** Implement phases 2 and 3 in parallel since neither depends on the other. Start frontend pages (phase 5) while phase 4 routes are still being built — mock API responses first, wire to real endpoints later.
