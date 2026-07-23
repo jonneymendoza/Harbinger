@@ -8,10 +8,10 @@ COPY package.json ./
 
 RUN pnpm install
 
-COPY . .
-
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=http://localhost:8082/api
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+COPY . .
 
 RUN pnpm build
 
@@ -19,19 +19,16 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend-api:5000}
+ARG NEXT_PUBLIC_API_URL
+ENV NODE_ENV=production \
+    NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    PORT=3000
 
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
+RUN npm install -g pnpm && pnpm install --prod
+
 COPY --from=builder /app/.next ./.next
 
-ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend-api:5000}
-
 EXPOSE 3000
-ENV PORT=3000
-
-RUN npm install -g pnpm
 
 CMD ["pnpm", "start"]

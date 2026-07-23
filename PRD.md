@@ -37,13 +37,22 @@ The system will follow a **Client-Server-Database** architecture with an asynchr
     *   Administrative endpoints secured via a specific `ROLE_ADMIN` claim in the JWT.
 
 ### C. User Authentication & Interactivity
-*   **Authentication Level:** Complex OAuth 2.0 integration.
+*   **Three-Tier Identity Model:**
+    1. **Guest (Unauthenticated):** Anonymous users who can browse the public feed and view article details without any login. No personalization available.
+    2. **Registered User (Authenticated via OAuth or Guest → Account migration):** Full interactivity including bookmarking, profile persistence, reading history.
+    3. **Administrator:** Full access to admin dashboard for source management.
+*   **Guest Mode:**
+    *   Users may enter the application as a guest with no credentials required.
+    *   A temporary anonymous user is created server-side on first entry; a `guest`-scoped JWT is issued (short-lived, 7-day expiry, role `GUEST`).
+    *   Guests can browse articles and feeds identically to registered users but **cannot** bookmark. If they try, they are prompted to create an account.
+    *   On subsequent visits, the guest session is preserved via the token in localStorage so their experience continues seamlessly.
+*   **Authentication Level:** Complex OAuth 2.0 integration (registered users only).
     *   Google Sign-In
     *   Apple ID Sign-In
     *   Facebook Sign-In
-*   **Interactivity:** Users can "Bookmark/Save" articles to their profile for later reading.
+*   **Interactivity:** Registered Users can "Bookmark/Save" articles to their profile for later reading.
 
-### C. Web Frontend UI/UX
+### D. Web Frontend UI/UX
 *   **Home Page:** A modern, responsive grid of tiles (Image + Title).
 *   **Article View:** High-fidelity rendering of the cleaned JSON content and images.
 *   **Saved Section:** A private area for authenticated users to view their bookmarked articles.
@@ -54,6 +63,7 @@ The system will follow a **Client-Server-Database** architecture with an asynchr
 
 ### Authentication
 `POST /auth/google` | `POST /auth/apple` | `POST /auth/facebook` $\rightarrow$ Returns JWT Token.
+`POST /auth/guest` $\rightarrow$ Returns a short-lived guest session token for anonymous browsing.
 
 ### News Endpoints
 *   `GET /api/news`

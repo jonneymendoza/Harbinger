@@ -6,7 +6,7 @@ import { configureGoogleStrategy } from '@infrastructure/auth/passport-google';
 import { configureAppleStrategy } from '@infrastructure/auth/passport-apple';
 import { configureFacebookStrategy } from '@infrastructure/auth/passport-facebook';
 
-const PORT = process.env.SERVER_PORT || process.env.PORT || 5000;
+const PORT = parseInt(process.env.SERVER_PORT || process.env.PORT || '5000', 10);
 
 async function startServer(): Promise<express.Application> {
   await connectDB();
@@ -19,7 +19,7 @@ async function startServer(): Promise<express.Application> {
 
   const app = await bootstrap();
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Server] Listening on port ${PORT}`);
   });
 

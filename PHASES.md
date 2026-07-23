@@ -40,6 +40,28 @@
 
 ---
 
+## Phase 2b: Guest Mode [🔴 TODO]
+
+### Backend
+- [ ] `jwtService.ts` — new function `signGuestJWT(): string` that issues HS256 token with `role: 'GUEST'`, `expiresIn: '7d'`
+- [ ] `POST /api/auth/guest` route (`domains/auth/routes/guest.route.ts`) 
+    - Creates/upserts a User doc with `provider: 'guest'`, unique UUID v4
+    - Returns `{ token, expiresAt }`
+- [ ] Update auth middleware to allow `GUEST` role on read-only routes (`/api/news*`, `/api/articles*`)
+- [ ] Bookmarks endpoints return `403` + guidance message for `GUEST` role users (vs. `401` for unauthenticated)
+
+### Frontend
+- [ ] `AuthContext.tsx` — track three states: authenticated (`USER`/`ADMIN`), guest (`GUEST`), anonymous (no token)
+- [ ] `(public)/page.tsx` — add "Continue as Guest" button; **always** render the feed grid regardless of auth state
+- [ ] `api/client.ts` — public endpoints (`/api/news`, `/api/articles/:id`) do not redirect on 401; only bookmark/admin calls trigger login redirect
+- [ ] Login page — add "Continue as Guest" option alongside social buttons
+- [ ] Upgrade prompt component — modal/banner shown when guest attempts bookmark or protected action
+- [ ] Navbar — show "Guest" indicator (generic avatar icon) with link to upgrade or logout
+
+**What this gives you:** Anyone can browse the feed immediately. No OAuth providers needed to access content. Guests who want bookmarks get a smooth upgrade path.
+
+---
+
 ## Phase 3: Scraping Engine [🔴 TODO]
 
 ### Backend
@@ -119,11 +141,12 @@
 | Phase | Can run in parallel? | Depends on |
 |---|---|---|
 | 1 (Foundation) | No — base layer | None |
-| 2 (Auth) | ✅ Yes, with Phase 3 | Mongoose users collection ✓ |
+| 2 (Auth + Guest) | ✅ Yes, with Phase 3 | Mongoose users collection ✓ |
+| 2b (Guest Mode) | ✅ Yes, with Phase 2 & 3 | Auth infra from Phase 2 ✓ |
 | 3 (Scraper) | ✅ Yes, with Phase 2 | Mongoose articles/sources collections ✓ |
 | 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
 | 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
 
-**Critical path:** 1 → 2 → 3 → 4 → 5 → 6
+**Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6
 **Ways to speed up:** Implement phases 2 and 3 in parallel since neither depends on the other. Start frontend pages (phase 5) while phase 4 routes are still being built — mock API responses first, wire to real endpoints later.

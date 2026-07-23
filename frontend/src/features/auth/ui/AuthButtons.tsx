@@ -9,8 +9,24 @@ interface AuthButtonsProps {
   onAuthSuccess?: () => void;
 }
 
+async function initiateOAuth(provider: string): Promise<string | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082/api';
+  try {
+    const res = await fetch(`${apiUrl}/auth/${provider}`, { method: 'POST' });
+    const data = await res.json();
+    if (data?.success && data?.data?.authorizationUrl) {
+      return data.data.authorizationUrl;
+    }
+    return null;
+  } catch (err) {
+    console.error(`OAuth init failed for ${provider}:`, err);
+    return null;
+  }
+}
+
 function openPopup(provider: string): Window | null {
-  const url = `${API_URL}/auth/${provider}`;
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082/api';
+  const url = `${apiUrl}/auth/${provider}`;
   const width = 600;
   const height = 700;
   const left = window.screenX + (window.outerWidth - width) / 2;
@@ -32,22 +48,16 @@ function GoogleLogo({ size }: { size: number }) {
 export function AuthButtons({ onAuthSuccess }: AuthButtonsProps) {
   const { login } = useAuth();
 
-  const handleOAuth = (provider: string) => {
-    const popup = openPopup(provider);
-    if (!popup) return;
+  const handleOAuth = async (provider: string) => {
+    // Step 1: Initiate OAuth via POST to get the authorization URL
+    const authUrl = await initiateOAuth(provider);
+    if (!authUrl) {
+      alert('Failed to initiate sign-in with ' + provider + '. Check console for details.');
+      return;
+    }
 
-    window.addEventListener('message', (event: MessageEvent) => {
-      if (event.data?.type === 'oauth_success') {
-        const { token, user } = event.data.payload;
-        login(token, user);
-        onAuthSuccess?.();
-        popup.close();
-      }
-      if (event.data?.type === 'oauth_error') {
-        alert(event.data.payload?.message || 'Authentication failed');
-        popup.close();
-      }
-    });
+    // Step 2: Redirect browser directly to Google/Apple/Facebook login page
+    window.location.href = authUrl;
   };
 
   return (
