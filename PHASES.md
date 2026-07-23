@@ -13,30 +13,33 @@
 
 ---
 
-## Phase 2: Authentication [🔴 TODO]
+## Phase 2: Authentication [✅ COMPLETE]
 
 ### Backend
-- [ ] Express skeleton with health route (`GET /api/health`)
-- [ ] Mongoose connection setup (`infra/repositories/mongoConn.ts`)
-- [ ] `users` collection schema (per `specs/api-auth.md §3`)
-- [ ] Admin bootstrap middleware — seeds admin account on first boot (uses `ADMIN_USER`/`ADMIN_PASS`)
-- [ ] JWT service (`infra/auth/jwtService.ts`) — HS256 signing, 30-day expiry
-- [ ] Passport strategy configs:
-  - [ ] `passport-google-oauth20` → `/api/auth/google/callback`
-  - [ ] `passport-apple` → `/api/auth/apple/callback`
-  - [ ] `passport-facebook` → `/api/auth/facebook/callback`
-- [ ] Login initiation route — `POST /api/auth/:provider` returns OAuth URL (popup flow)
-- [ ] Callback handlers — exchange code for profile, create/update user in Mongo, sign JWT
-- `checkRole("ADMIN")` middleware (`infra/middleware/adminCheck.ts`)
+- [x] Express skeleton with health route (`GET /api/health`)
+- [x] Mongoose connection setup (`infra/repositories/mongoConn.ts`)
+- [x] `users` collection schema (per `specs/api-auth.md §3`)
+- [x] Admin bootstrap middleware — seeds admin account on first boot (uses `ADMIN_USER`/`ADMIN_PASS`)
+- [x] JWT service (`infra/auth/jwtService.ts`) — HS256 signing, 30-day expiry
+- [x] Passport strategy configs:
+  - [x] `passport-google-oauth20` → `/api/auth/google/callback`
+  - [x] `passport-apple` → `/api/auth/apple/callback`
+  - [x] `passport-facebook` → `/api/auth/facebook/callback`
+- [x] Login initiation route — `POST /api/auth/:provider` returns OAuth URL (full-page redirect flow)
+- [x] Callback handlers — exchange code for profile, create/update user in Mongo, sign JWT
+- [x] `checkRole("ADMIN")` middleware (`infra/middleware/adminCheck.ts`)
 
 ### Frontend
-- [ ] Next.js app scaffold + Tailwind config (`tailwind.config.ts`, `_app.tsx`)
-- [ ] `next-themes` config for dark/light mode (per `specs/frontend-ui.md §2.A`)
-- [ ] Login page UI — centered card with 3 social buttons (`features/auth-feature/ui/AuthButtons.tsx`)
-- [ ] API client wrapper (`shared/api/client.ts`) — singleton fetch, JWT injection, error mapping to `{success,data,error}` response format
-- [ ] Popup window logic for OAuth flow (listens for `message` event from popup)
+- [x] Next.js app scaffold + Tailwind config (`tailwind.config.ts`, `_app.tsx`)
+- [x] `next-themes` config for dark/light mode (per `specs/frontend-ui.md §2.A`)
+- [x] Login page UI — centered card with 3 social buttons (`features/auth-feature/ui/AuthButtons.tsx`)
+- [x] API client wrapper (`shared/api/client.ts`) — singleton fetch, JWT injection, error mapping to `{success,data,error}` response format
+- [x] AuthContext with three states: authenticated, guest, anonymous
+- [x] OAuth URL param handler — auto-login when redirected from callback
 
 **What this gives you:** Users can log in with Google/Apple/Facebook, get a JWT token, and hit protected routes. Verified via curl or Postman — no UI polish yet.
+
+> **Note:** Apple and Facebook require separate developer console setup. See `OAUTH_SETUP.md` for step-by-step instructions.
 
 ---
 
