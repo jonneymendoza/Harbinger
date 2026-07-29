@@ -200,6 +200,113 @@ POST /api/auth/logout
 
 ---
 
+## Bookmarks — User Article Collection (Phase 4)
+
+### `GET /api/bookmarks`
+Fetch all articles bookmarked by the authenticated user. Returns only USER-authorized tokens; guests receive `403 { code: GUEST_UPGRADE_REQUIRED }`.
+
+#### Headers
+```
+Authorization: Bearer <JWT>
+```
+
+#### Response — `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "67a1b2c3d4e5f6g7h8i9j0k1",
+      "title": "Arsenal Win Over Chelsea",
+      "summary": "A dramatic match...",
+      "thumbnailImage": "/cdn/img.jpg",
+      "publishedAt": "2025-06-23T14:30:00Z"
+    }
+  ],
+  "error": null
+}
+```
+
+#### Error Response — `403 Forbidden` | `GUEST_UPGRADE_REQUIRED`
+```json
+{
+  "success": false,
+  "data": null,
+  "error": { "message": "Please create an account to save bookmarks", "code": "GUEST_UPGRADE_REQUIRED" }
+}
+```
+
+---
+
+### `POST /api/bookmarks/:articleId`
+Add an article to the user's bookmark list. Idempotent (`$addToSet` prevents duplicates).
+
+#### Headers
+```
+Authorization: Bearer <JWT>
+Content-Type: application/json
+```
+
+#### Path Parameters
+| Parameter    | Type   | Description        |
+|--------------|--------|--------------------|
+| `articleId`  | string | MongoDB ObjectId of the article |
+
+#### Response — `200 OK`
+```json
+{
+  "success": true,
+  "data": { "bookmarked": true },
+  "error": null
+}
+```
+
+#### Error Responses
+| Status   | Code                | Description                        |
+|----------|---------------------|------------------------------------|
+| `400`    | `INVALID_ID`        | Malformed article ID               |
+| `403`    | `GUEST_UPGRADE_REQUIRED` | Guest token used to bookmark  |
+| `404`    | `ARTICLE_NOT_FOUND` | Article does not exist in system   |
+
+---
+
+### `DELETE /api/bookmarks/:articleId`
+Remove a specific article from bookmarks.
+
+#### Headers
+```
+Authorization: Bearer <JWT>
+```
+
+#### Response — `200 OK`
+```json
+{
+  "success": true,
+  "data": { "bookmarkRemoved": true },
+  "error": null
+}
+```
+
+---
+
+### `DELETE /api/bookmarks` (bulk)
+Clear **all** bookmarks for the authenticated user.
+
+#### Response — `200 OK`
+```json
+{
+  "success": true,
+  "data": { "cleared": true },
+  "error": null
+}
+```
+
+| Status | Code         | Description                         |
+|--------|--------------|-------------------------------------|
+| `403`  | `FORBIDDEN`  | Missing or invalid Bearer token     |
+
+---
+
 ## Response Schema
 
 All endpoints follow a unified response envelope:
@@ -399,6 +506,139 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /bookmarks:
+    get:
+      tags: [Bookmarks]
+      summary: Fetch all bookmarks for authenticated user
+      description: Returns the full article objects collected in the user's bookmark list. Rejects guest tokens with `GUEST_UPGRADE_REQUIRED`.
+      operationId: getBookmarks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Bookmark collection returned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Article"
+                  error: { type: "null", example: null }
+        "403":
+          description: Guest token or missing auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"    
+    delete:
+      tags: [Bookmarks]
+      summary: Clear all bookmarks for authenticated user
+      operationId: clearAllBookmarks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All bookmarks cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: object, properties: { cleared: { type: boolean, example: true } } }
+                  error: { type: "null", example: null }
+        "403":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"    
+  /bookmarks/{articleId}:
+    post:
+      tags: [Bookmarks]
+      summary: Add an article to user's bookmarks (idempotent)
+      operationId: addBookmark
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: mongo-object-id
+      requestBody:
+        content:
+          application/json: { schema: { type: object, properties: {} } }
+      responses:
+        "200":
+          description: Article bookmarked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: object, properties: { bookmarked: { type: boolean } } }
+                  error: { type: "null", example: null }
+        "400":
+          description: Invalid article ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Guest token used to bookmark
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Article not found in system
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      tags: [Bookmarks]
+      summary: Remove specific article from bookmarks
+      operationId: removeBookmark
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: mongo-object-id
+      responses:
+        "200":
+          description: Bookmark removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: object, properties: { bookmarkRemoved: { type: boolean } } }
+                  error: { type: "null", example: null }
+        "400":
+          description: Invalid article ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"                     
 components:
   securitySchemes:
     bearerAuth:
@@ -511,3 +751,7 @@ components:
 | 6 | `GET` | `/api/auth/apple/callback` | No | Apple login redirect back to app |
 | 7 | `GET` | `/api/auth/facebook/callback` | No | Facebook login redirect back to app |
 | 8 | `POST` | `/api/auth/logout` | ✅ Bearer JWT | Session logout |
+| 9 | `GET` | `/api/bookmarks` | ✅ Bearer JWT | Fetch all bookmarks for authenticated user |
+| 10 | `POST` | `/api/bookmarks/:articleId` | ✅ Bearer JWT (USER only) | Add article to user's bookmarks |
+| 11 | `DELETE` | `/api/bookmarks/:articleId` | ✅ Bearer JWT (USER only) | Remove specific bookmark |
+| 12 | `DELETE` | `/api/bookmarks` | ✅ Bearer JWT (USER only) | Clear all bookmarks for user |

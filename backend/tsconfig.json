@@ -18,7 +18,8 @@
     "paths": {
       "@domains/*": ["src/domains/*"],
       "@infrastructure/*": ["src/infrastructure/*"],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@cron/*": ["src/cron/*"]
     }
   },
   "include": ["src/**/*"],

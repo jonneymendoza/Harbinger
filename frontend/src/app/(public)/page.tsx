@@ -1,20 +1,20 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 import { Button, Card } from '@/shared/ui';
 import Link from 'next/link';
-/** Placeholder article grid — wire to real data in Phase 4/5 */
-const PLACEHOLDER_ARTICLES = Array.from({ length: 8 }, (_, i) => ({
-  id: `pl-${i + 1}`,
-  title: `Sample Article ${i + 1}`,
-  thumbnail: '',
-  summary: 'Brief excerpt about this article.',
-  source: 'Gaming Source',
-  date: new Date(Date.now() - i * 3600_000).toISOString().split('T')[0],
-}));
+import { useNewsFeed } from '@/features/feed/useNewsFeed';
+import { Article } from '@/features/feed/types';
+import { api } from '@/shared/api/client';
 
 export default function PublicPage() {
   const { status, isAuthenticated, isGuest, setGuestToken, triggerUpgradePrompt } = useAuth();
+  const { articles, isLoading, isError } = useNewsFeed(1, 20);
+
+  /** Track per-article bookmark states locally for instant UI feedback */
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  const [loadingBookmark, setLoadingBookmark] = useState<string | null>(null);
 
   /** Issue a guest JWT and transition the user to guest mode */
   const handleGuestLogin = async () => {
@@ -30,15 +30,53 @@ export default function PublicPage() {
     }
   };
 
-  /** Bookmark handler — triggers upgrade prompt for guests */
-  const handleBookmark = () => {
-    if (isGuest) {
+  /** Bookmark handler — POST/DELETE /api/bookmarks based on auth state */
+  const handleBookmark = useCallback(async (articleId: string) => {
+    // Guest upgrade path per guest-mode.md spec
+    if (isGuest || !isAuthenticated) {
       triggerUpgradePrompt();
-    } else {
-      // Phase 4: real bookmark POST /api/bookmarks
-      alert('Bookmarked! (Phase 4 placeholder)');
+      return;
     }
-  };
+
+    setLoadingBookmark(articleId);
+    const isBookmarked = bookmarkedIds.has(articleId);
+
+    try {
+      let success = false;
+
+      if (isBookmarked) {
+        // Remove bookmark — DELETE /api/bookmarks/:articleId
+        const response = await api.auth.delete(`/bookmarks/${articleId}`);
+        if (response.error?.code === 'GUEST_UPGRADE_REQUIRED') {
+          triggerUpgradePrompt();
+          return;
+        }
+        success = response.success;
+      } else {
+        // Add bookmark — POST /api/bookmarks/:articleId
+        const response = await api.auth.post(`/bookmarks/${articleId}`, {});
+        if (response.error?.code === 'GUEST_UPGRADE_REQUIRED') {
+          triggerUpgradePrompt();
+          return;
+        }
+        success = response.success;
+      }
+
+      if (success) {
+        setBookmarkedIds(prev => {
+          const next = new Set(prev);
+          if (isBookmarked) next.delete(articleId);
+          else next.add(articleId);
+          return next;
+        });
+      }
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      console.error('[Page] Bookmark action failed:', e.message || err);
+    } finally {
+      setLoadingBookmark(null);
+    }
+  }, [isGuest, isAuthenticated, bookmarkedIds, triggerUpgradePrompt]);
 
   return (
     <main className="min-h-screen bg-white dark:bg-slate-950">
@@ -68,40 +106,51 @@ export default function PublicPage() {
 
       {/* -- Feed grid — always rendered -- */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8" style={{ minHeight: isAuthenticated || isGuest ? undefined : 0 }}>
-        {status !== 'IS_ANONYMOUS' ? (
-          <>
-            <h2 className="mb-6 text-xl font-semibold text-slate-900 dark:text-white">Latest Articles</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {PLACEHOLDER_ARTICLES.map((article) => (
-                <Link key={article.id} href={`/article/${article.id}`} passHref>
-                  <Card hover className="group h-full flex flex-col relative">
-                    {/* Bookmark button */}
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBookmark(); }}
-                      className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Bookmark this article"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
-                      </svg>
-                    </button>
-                    <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg group-hover:scale-[1.02] transition-transform" />
-                    <div className="flex-1 p-4">
-                      <h3 className="font-semibold text-slate-900 dark:text-white line-clamp-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{article.title}</h3>
-                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{article.summary}</p>
-                    </div>
-                    <div className="px-4 pb-4 flex items-center justify-between text-xs text-slate-400">
-                      <span>{article.source}</span>
-                      <span>{article.date}</span>
-                    </div>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </>
+        {/* Anonymous visitors browse the same feed as everyone else — gating it
+            behind a session left them staring at a permanent loading state. */}
+        <h2 className="mb-6 text-xl font-semibold text-slate-900 dark:text-white">Latest Articles</h2>
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-80 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="text-center py-12 text-red-500">Failed to load articles. Please try again later.</div>
+        ) : articles.length === 0 ? (
+          <div className="text-center py-12 text-slate-400 dark:text-slate-600">No articles found. Check back later!</div>
         ) : (
-          <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-600">
-            Loading feed…
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {articles.map((article: Article) => (
+              <Link key={article.id} href={`/article/${article.id}`} passHref>
+                <Card hover className="group h-full flex flex-col relative">
+                  {/* Bookmark button — fills/empties based on local bookmarkedIds state */}
+                  <button
+                    disabled={loadingBookmark === article.id}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBookmark(article.id); }}
+                    className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 disabled:cursor-not-allowed"
+                    style={{ color: bookmarkedIds.has(article.id) ? '#ef4444' : '' }}
+                    title="Bookmark this article"                      >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+                    </svg>
+                  </button>
+                  {article.thumbnailImage ? (
+                    <img src={article.thumbnailImage} alt={article.title} className="aspect-video w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg group-hover:scale-[1.02] transition-transform object-cover" />
+                  ) : (
+                    <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg group-hover:scale-[1.02] transition-transform" />
+                  )}
+                  <div className="flex-1 p-4">
+                    <h3 className="font-semibold text-slate-900 dark:text-white line-clamp-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{article.title}</h3>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{article.summary}</p>
+                  </div>
+                  <div className="px-4 pb-4 flex items-center justify-between text-xs text-slate-400">
+                    <span>{article.sourceName}</span>
+                    <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                  </div>
+                </Card>
+              </Link>
+            ))}
           </div>
         )}
       </section>

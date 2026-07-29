@@ -43,42 +43,52 @@
 
 ---
 
-## Phase 2b: Guest Mode [🔴 TODO]
+## Phase 2b: Guest Mode [✅ COMPLETE]
 
 ### Backend
-- [ ] `jwtService.ts` — new function `signGuestJWT(): string` that issues HS256 token with `role: 'GUEST'`, `expiresIn: '7d'`
-- [ ] `POST /api/auth/guest` route (`domains/auth/routes/guest.route.ts`) 
+- [x] `jwtService.ts` — `signGuestToken()` issues HS256 token with `role: 'GUEST'`, `expiresIn: '7d'`
+- [x] `POST /api/auth/guest` route (`domains/auth/routes/guest.route.ts`)
     - Creates/upserts a User doc with `provider: 'guest'`, unique UUID v4
     - Returns `{ token, expiresAt }`
-- [ ] Update auth middleware to allow `GUEST` role on read-only routes (`/api/news*`, `/api/articles*`)
-- [ ] Bookmarks endpoints return `403` + guidance message for `GUEST` role users (vs. `401` for unauthenticated)
+- [x] Update auth middleware to allow `GUEST` role on read-only routes (`/api/news*`, `/api/articles*`)
+    - `optionalAuth(allowGuestOn?)` guard for public-but-preferred-auth endpoints
+    - `checkRole` returns 403 with guest-specific message for bookmarks
+- [x] Bookmarks endpoints return `403` + guidance message for `GUEST` role users (vs. `401` for unauthenticated)
 
 ### Frontend
-- [ ] `AuthContext.tsx` — track three states: authenticated (`USER`/`ADMIN`), guest (`GUEST`), anonymous (no token)
-- [ ] `(public)/page.tsx` — add "Continue as Guest" button; **always** render the feed grid regardless of auth state
-- [ ] `api/client.ts` — public endpoints (`/api/news`, `/api/articles/:id`) do not redirect on 401; only bookmark/admin calls trigger login redirect
-- [ ] Login page — add "Continue as Guest" option alongside social buttons
-- [ ] Upgrade prompt component — modal/banner shown when guest attempts bookmark or protected action
-- [ ] Navbar — show "Guest" indicator (generic avatar icon) with link to upgrade or logout
+- [x] `AuthContext.tsx` — tracks three states: authenticated (`USER`/`ADMIN`), guest (`GUEST`), anonymous (no token)
+- [x] `(public)/page.tsx` — "Continue as Guest" button; **always** renders the feed grid regardless of auth state
+- [x] `api/client.ts` — public endpoints do not redirect on 401; only bookmark/admin calls trigger login redirect
+- [x] Login page (`LoginCard.tsx`) — "Continue as Guest" option alongside social buttons
+- [x] Upgrade prompt component (`UpgradePrompt.tsx`) — modal shown when guest attempts bookmark or protected action
+- [x] Navbar — shows "Guest" indicator (indigo badge with User icon) with Upgrade link
 
 **What this gives you:** Anyone can browse the feed immediately. No OAuth providers needed to access content. Guests who want bookmarks get a smooth upgrade path.
 
 ---
 
-## Phase 3: Scraping Engine [🔴 TODO]
+## Phase 3: Scraping Engine ✅ COMPLETE
 
 ### Backend
-- [ ] `IScraperStrategy` interface (`domains/news/interfaces/`)
-- [ ] Playwright scraper adapter (`infra/scraper/playwrightScraper.ts`)
-- [ ] Content cleaner — strips `<script>`/`<style>`, normalizes dates to ISO 8601, resolves relative image URLs (per `specs/backend-scrapper.md §2.E`)
-- [ ] User agent rotation middleware
-- [ ] Extraction pipeline use-case (`domains/news/scrapeNewsService.ts`) — orchestrates Source Retrieval → Navigation → Link Discovery → Deep Scraping → Cleaning → Upsert (matches `PRD.md §3.A` exactly)
-- [ ] Sources collection schema (`specs/backend-scrapper.md §3`)
-- [ ] Articles collection schema + validation
-- [ ] Request throttling — random 1–5s delay between scrapes, max 3 concurrent pages
-- [ ] Cron job with `node-cron` — every 60 minutes, fetches active sources from DB
+- [x] `IScraperStrategy` interface (`domains/news/interfaces/`)
+- [x] Playwright scraper adapter (`infra/scraper/playwrightScraper.ts`)
+- [x] Content cleaner — strips `<script>`/`<style>`, normalizes dates to ISO 8601, resolves relative image URLs (per `specs/backend-scrapper.md §2.E`)
+- [x] User agent rotation middleware
+- [x] Extraction pipeline use-case (`domains/news/services/newsService.ts`) — orchestrates Source Retrieval → Navigation → Link Discovery → Deep Scraping → Cleaning → Upsert (matches `PRD.md §3.A` exactly)
+- [x] Sources collection schema (`specs/backend-scrapper.md §3`)
+- [x] Articles collection schema + validation
+- [x] Request throttling — random 1–5s delay between scrapes, max 3 concurrent pages
+- [x] Cron job with `node-cron` — every 60 minutes, fetches active sources from DB
 
 **What this gives you:** Mongo has article documents. Verify by querying `db.articles.find()` directly — no HTTP endpoints exist yet.
+
+### Tests
+- [x] Unit tests: contentCleaner (12), urlResolver (9), throttler (5), userAgentPool (4), playwrightScraper (6), newsService (4) = **40/40 passing**
+- [x] Vitest config with path aliases (`backend/vitest.config.ts`)
+
+### Infrastructure
+- [x] Dockerfile already includes `npx playwright install --with-deps chromium`
+- [x] Dependencies installed: playwright, node-cron, cheerio, vitio
 
 ---
 
