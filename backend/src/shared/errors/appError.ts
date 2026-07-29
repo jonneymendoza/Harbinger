@@ -20,4 +20,12 @@ export class AppError extends Error {
   static forbidden(message = 'Forbidden'): AppError {
     return new AppError(message, 'FORBIDDEN', 403);
   }
+
+  static badRequest(message = 'Bad request'): AppError {
+    return new AppError(message, 'BAD_REQUEST', 400);
+  }
+
+  static internalServerError(message = 'Internal server error'): AppError {
+    return new AppError(message, 'INTERNAL_SERVER_ERROR', 500);
+  }
 }

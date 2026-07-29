@@ -1,4 +1,4 @@
-import { verifyGuestJWT, AuthPayload } from '@infrastructure/auth/jwtService';
+import { verifyToken, AuthPayload } from '@infrastructure/auth/jwtService';
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '@shared/errors/appError';
 
@@ -12,7 +12,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = verifyGuestJWT(token);
+    // Verify the signature only — deciding which roles a route accepts is
+    // checkRole's job. Verifying as a guest token here would reject every
+    // USER and ADMIN token outright.
+    const decoded = verifyToken(token);
     (req as any).user = decoded;
     next();
   } catch {
@@ -60,7 +63,7 @@ export function optionalAuth(allowGuestOn?: string[]) {
 
     const token = authHeader.split(' ')[1];
     try {
-      const decoded = verifyGuestJWT(token);
+      const decoded = verifyToken(token);
       (req as any).user = decoded;
       if (decoded.role === 'GUEST' && allowGuestOn && !allowGuestOn.includes(req.path)) {
         return next(AppError.forbidden(
