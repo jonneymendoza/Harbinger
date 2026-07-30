@@ -1,6 +1,6 @@
 'use client';
 
-import { User, LogOut, Settings } from 'lucide-react';
+import { User, LogOut, Settings, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 
@@ -15,10 +15,9 @@ export default function Navbar() {
           Harbinger
         </Link>
 
-        {/* Auth indicator */}
+        {/* Right-side controls */}
         <div className="flex items-center gap-3">
-          {/* Admin entry point. Hidden for everyone else — the route is guarded
-              client-side and every request is re-checked server-side. */}
+          {/* Admin nav entry — hidden for non-admins */}
           {isAdmin && (
             <Link
               href="/admin"
@@ -29,6 +28,18 @@ export default function Navbar() {
             </Link>
           )}
 
+          {/* Bookmarks nav entry — shown for any authenticated or guest user */}
+          {(status === 'IS_AUTHENTICATED' || status === 'IS_GUEST') && (
+            <Link
+              href="/bookmarks"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Bookmark size={15} />
+              <span>Bookmarks</span>
+            </Link>
+          )}
+
+          {/* Guest banner + upgrade */}
           {status === 'IS_GUEST' && (
             <>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800">
@@ -44,6 +55,7 @@ export default function Navbar() {
             </>
           )}
 
+          {/* Login button for anonymous visitors */}
           {status === 'IS_ANONYMOUS' && (
             <Link
               href="/login"
@@ -53,6 +65,7 @@ export default function Navbar() {
             </Link>
           )}
 
+          {/* Logout button for authenticated users */}
           {status !== 'IS_ANONYMOUS' && status !== 'IS_GUEST' && (
             <button
               onClick={logout}
