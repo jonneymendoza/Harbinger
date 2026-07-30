@@ -43,6 +43,41 @@ export interface TestScrapeResult {
   category: string | null;
 }
 
+export type ScrapeTrigger = 'boot' | 'cron' | 'manual';
+/** partial = the run completed but at least one source reported a problem. */
+export type ScrapeStatus = 'success' | 'partial' | 'failed';
+
+export interface ScrapeRunSourceResult {
+  sourceId: string | null;
+  sourceName: string;
+  linksDiscovered: number;
+  articlesScraped: number;
+  articlesSkipped: number;
+  articlesRejected: number;
+  errors: string[];
+}
+
+export interface ScrapeRun {
+  id: string;
+  trigger: ScrapeTrigger;
+  status: ScrapeStatus;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  totalArticlesAdded: number;
+  results: ScrapeRunSourceResult[];
+  /** Set when the pipeline itself threw, rather than a single source failing. */
+  error?: string | null;
+}
+
+export interface ScrapeRunPage {
+  runs: ScrapeRun[];
+  totalRuns: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 /** The editable shape of a source; mirrors what the write endpoints accept. */
 export interface SourceFormValues {
   name: string;

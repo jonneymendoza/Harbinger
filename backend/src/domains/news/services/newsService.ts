@@ -4,6 +4,8 @@ import { ArticleInput, IArticleRepository } from '@domains/news/interfaces/IArti
 import { Throttler } from '@infrastructure/scraper/throttler';
 
 export interface ScrapeResult {
+  /** Lets a log entry link back to the source that produced it. */
+  sourceId: string | null;
   sourceName: string;
   linksDiscovered: number;
   articlesScraped: number;
@@ -51,6 +53,7 @@ export class NewsService {
       } catch (error) {
         console.error(`[NewsService] Failed to scrape source "${source.name}":`, error);
         results.push({
+          sourceId: source._id ? String(source._id) : null,
           sourceName: source.name,
           linksDiscovered: 0,
           articlesScraped: 0,
@@ -70,6 +73,7 @@ export class NewsService {
    */
   private async scrapeSource(source: Source): Promise<ScrapeResult> {
     const result: ScrapeResult = {
+      sourceId: source._id ? String(source._id) : null,
       sourceName: source.name,
       linksDiscovered: 0,
       articlesScraped: 0,

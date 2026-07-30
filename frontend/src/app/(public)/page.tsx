@@ -9,6 +9,7 @@ import { Pagination } from '@/features/feed/ui/Pagination';
 import { SourceFilter } from '@/features/feed/ui/SourceFilter';
 import { Article } from '@/features/feed/types';
 import { useBookmarks } from '@/features/bookmark-feature/hooks/useBookmarks';
+import { showError } from '@/features/ui/toast';
 
 export default function PublicPage() {
   const { status, isAuthenticated, isGuest, setGuestToken } = useAuth();
@@ -30,9 +31,11 @@ export default function PublicPage() {
       const { data } = await res.json();
       if (data?.token) {
         setGuestToken(data.token);
+      } else {
+        showError('Could not start a guest session', 'Please try again.');
       }
     } catch {
-      // Silently fail — user can retry
+      showError('Could not start a guest session', 'Is the backend running?');
     }
   };
 

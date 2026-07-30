@@ -7,6 +7,7 @@ import { AdminGuard } from '@/features/admin/ui/AdminGuard';
 import { SourcesTable } from '@/features/admin/ui/SourcesTable';
 import { SourceEditor } from '@/features/admin/ui/SourceEditor';
 import { useAdapters, useSources, runScraper } from '@/features/admin/api/useSources';
+import { dismissToast, showError, showSuccess, startLoading } from '@/features/ui/toast';
 import {
   Source,
   SourceFormValues,
@@ -22,30 +23,29 @@ function Dashboard() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SourceFormValues>(emptySourceForm());
-  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [scraping, setScraping] = useState(false);
 
   const openCreate = () => {
     setForm(emptySourceForm(defaultAdapter));
     setEditingId(null);
     setEditorOpen(true);
-    setNotice(null);
   };
 
   const openEdit = (source: Source) => {
     setForm(sourceToForm(source));
     setEditingId(source._id);
     setEditorOpen(true);
-    setNotice(null);
   };
 
   const handleSave = async (requiresSelectors: boolean) => {
+    // Errors propagate to SourceEditor, which shows them beside the form the
+    // operator is still looking at.
     if (editingId) {
       await update(editingId, form, requiresSelectors);
-      setNotice({ kind: 'ok', text: 'Source updated.' });
+      showSuccess('Source updated');
     } else {
       await create(form, requiresSelectors);
-      setNotice({ kind: 'ok', text: 'Source added. It will be picked up on the next scrape.' });
+      showSuccess('Source added', 'It will be picked up on the next scrape.');
     }
     setEditorOpen(false);
     setEditingId(null);
@@ -54,22 +54,25 @@ function Dashboard() {
   const guarded = async (fn: () => Promise<void>, okText: string) => {
     try {
       await fn();
-      setNotice({ kind: 'ok', text: okText });
+      showSuccess(okText);
     } catch (err) {
-      setNotice({ kind: 'err', text: err instanceof Error ? err.message : 'Action failed' });
+      showError('Action failed', err instanceof Error ? err.message : undefined);
     }
   };
 
   const handleRunScraper = async () => {
     setScraping(true);
-    setNotice(null);
+    // A scrape can run for minutes, so hold a loading toast rather than leaving
+    // the operator wondering whether anything is happening.
+    const toastId = startLoading('Running scraper…');
     try {
       await runScraper();
       await refresh();
-      setNotice({ kind: 'ok', text: 'Scrape finished. New articles are on the feed.' });
+      showSuccess('Scrape finished', 'New articles are on the feed.');
     } catch (err) {
-      setNotice({ kind: 'err', text: err instanceof Error ? err.message : 'Scrape failed' });
+      showError('Scrape failed', err instanceof Error ? err.message : undefined);
     } finally {
+      dismissToast(toastId);
       setScraping(false);
     }
   };
@@ -81,6 +84,10 @@ function Dashboard() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Sources</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Scraping targets for the hourly job.{' '}
+            <Link href="/admin/logs" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              Scrape logs
+            </Link>
+            {' · '}
             <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
               View feed
             </Link>
@@ -95,19 +102,6 @@ function Dashboard() {
           </Button>
         </div>
       </header>
-
-      {notice && (
-        <p
-          role="status"
-          className={
-            notice.kind === 'ok'
-              ? 'mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
-              : 'mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300'
-          }
-        >
-          {notice.text}
-        </p>
-      )}
 
       {editorOpen && (
         <div className="mb-6">

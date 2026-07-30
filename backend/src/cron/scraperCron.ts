@@ -3,6 +3,8 @@ import { PlaywrightScraper } from '@infrastructure/scraper/playwrightScraper';
 import { SourceRepository } from '@infrastructure/repositories/sourceRepository';
 import { ArticleRepository } from '@infrastructure/repositories/articleRepository';
 import { NewsService, ScrapeResult } from '@domains/news/services/newsService';
+import { ScrapeRunRepository } from '@infrastructure/repositories/scrapeRunRepository';
+import { ScrapeStatus, ScrapeTrigger } from '@domains/news/models/ScrapeRun';
 
 /**
  * How many of the newest articles to consider per source, per run.
@@ -45,22 +47,62 @@ function logResults(label: string, results: ScrapeResult[]): void {
 }
 
 /**
+ * A source that errored, or discovered nothing at all, marks the run partial.
+ * Zero links is the signal that matters most: it is how a silently broken
+ * adapter presents, and it produces no error of its own.
+ */
+function deriveStatus(results: ScrapeResult[], threw: boolean): ScrapeStatus {
+  if (threw) return 'failed';
+  if (results.length === 0) return 'partial';
+  const degraded = results.filter((r) => r.errors.length > 0 || r.linksDiscovered === 0);
+  if (degraded.length === results.length) return 'failed';
+  return degraded.length > 0 ? 'partial' : 'success';
+}
+
+/**
  * Run the pipeline once, refusing to start a second concurrent run.
  * Two overlapping runs would double the browser load and race on upserts.
+ *
+ * Every run is persisted — including failures — so the admin log shows what the
+ * scraper actually did rather than requiring someone to read container stdout.
  */
-async function runOnce(label: string): Promise<ScrapeResult[]> {
+async function runOnce(label: string, trigger: ScrapeTrigger): Promise<ScrapeResult[]> {
   if (running) {
     console.log(`[${label}] A scrape is already in progress; skipping this run.`);
     return [];
   }
 
   running = true;
+  const startedAt = new Date();
+  let results: ScrapeResult[] = [];
+  let failure: string | null = null;
+
   try {
-    const results = await buildService().runScrapePipeline();
+    results = await buildService().runScrapePipeline();
     logResults(label, results);
     return results;
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+    throw error;
   } finally {
     running = false;
+
+    const finishedAt = new Date();
+    try {
+      await new ScrapeRunRepository().record({
+        trigger,
+        status: deriveStatus(results, failure !== null),
+        startedAt,
+        finishedAt,
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        totalArticlesAdded: results.reduce((sum, r) => sum + r.articlesScraped, 0),
+        results: results.map((r) => ({ ...r })),
+        error: failure,
+      });
+    } catch (recordError) {
+      // Logging must never take the scrape down with it.
+      console.error(`[${label}] Failed to record scrape run:`, recordError);
+    }
   }
 }
 
@@ -77,7 +119,7 @@ export function initScraperCron(): void {
   );
 
   cron.schedule(cronExpression, () => {
-    void runOnce('Cron').catch((error) => console.error('[Cron] Scraper job failed:', error));
+    void runOnce('Cron', 'cron').catch((error) => console.error('[Cron] Scraper job failed:', error));
   });
 
   console.log('[Cron] Scraper cron job initialized.');
@@ -96,7 +138,7 @@ export function scheduleInitialScrape(): void {
 
   console.log(`[Boot] Initial scrape starting (up to ${ARTICLE_LIMIT} article(s) per source)...`);
 
-  void runOnce('Boot')
+  void runOnce('Boot', 'boot')
     .then((results) => {
       const added = results.reduce((sum, r) => sum + r.articlesScraped, 0);
       console.log(`[Boot] Initial scrape finished; ${added} article(s) added.`);
@@ -108,5 +150,5 @@ export function scheduleInitialScrape(): void {
  * Manually trigger a scrape (for testing or admin "Run Now" button).
  */
 export async function runScrapeNow(): Promise<ScrapeResult[]> {
-  return runOnce('Manual');
+  return runOnce('Manual', 'manual');
 }
