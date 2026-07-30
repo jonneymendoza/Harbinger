@@ -3,7 +3,7 @@
 import { Apple as AppleIcon, Facebook } from 'lucide-react';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082/api';
 
 interface AuthButtonsProps {
   onAuthSuccess?: () => void;

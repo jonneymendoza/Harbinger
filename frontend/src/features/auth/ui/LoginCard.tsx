@@ -3,6 +3,7 @@
 import { useAuth } from '@/features/auth/lib/AuthContext';
 import { AuthButtons } from './AuthButtons';
 import { CredentialLoginForm } from './CredentialLoginForm';
+import { showError } from '@/features/ui/toast';
 import { UserMinus } from 'lucide-react';
 
 export function LoginCard() {
@@ -11,13 +12,14 @@ export function LoginCard() {
   const handleGuest = async () => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/auth/guest`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082/api'}/auth/guest`,
         { method: 'POST' },
       );
       const { data } = await res.json();
       if (data?.token) setGuestToken(data.token);
+      else showError('Could not start a guest session', 'Please try again.');
     } catch {
-      // Silently fail — user can retry
+      showError('Could not start a guest session', 'Is the backend running?');
     }
   };
 
