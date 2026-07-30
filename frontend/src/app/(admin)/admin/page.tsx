@@ -84,6 +84,10 @@ function Dashboard() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Sources</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Scraping targets for the hourly job.{' '}
+            <Link href="/admin/logs" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              Scrape logs
+            </Link>
+            {' · '}
             <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
               View feed
             </Link>

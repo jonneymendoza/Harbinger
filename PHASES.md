@@ -115,6 +115,7 @@
   - [x] `POST /api/admin/sources/test` — live test endpoint that spins up a temporary Playwright instance with the provided configuration
   - [x] `POST /api/admin/sources/run-scraper` — trigger the pipeline manually
   - [x] `GET /api/admin/sources/adapters` — available adapters and whether each needs CSS selectors
+  - [x] `GET /api/admin/sources/scrape-runs` — paginated history of scrape runs
 - [x] Global error handler — every failure returns `{success,data,error}` with the codes from `specs/api-endpoints.md §6` (401 for a missing/invalid token, 403 for authenticated-but-unprivileged)
 - [x] Route tests (`vitest` + `supertest`) — 67 tests covering auth codes per verb, pagination and clamping, source filtering, validation, cross-user isolation, and 500 propagation
 
@@ -204,16 +205,31 @@ component plus a visual audit.
 > source (Rust Blog) with selectors the registry had never seen, ran Test Scrape
 > against a real article, saved, toggled inactive and back, then deleted it.
 
+### Bookmarks page [✅ DONE]
+- [x] `app/bookmarks/page.tsx` — grid with unsave action, paginated against `GET /api/bookmarks`
+- [x] `BookmarksContext` above the router as the single source of truth, so bookmark state survives navigation between the feed, an article and this page
+
+### Toast notifications [✅ DONE]
+- [x] Sonner container mounted in `Providers`, helpers in `features/ui/toast.ts`
+- [x] Wired into bookmark actions (via `BookmarksContext`, so every surface reports identically), admin create/update/delete/toggle, and a loading toast for the duration of a manual scrape
+- [x] Convention: transient action results toast; persistent state (form validation, load failures) stays inline
+
+### System Logs [✅ DONE]
+- [x] `scraperuns` collection recording every run — trigger (`boot`/`cron`/`manual`), status, duration, per-source counts and errors
+- [x] Written from the single choke point in `scraperCron.runOnce`, so all three triggers are covered, failures included. A logging failure can never take the scrape down
+- [x] TTL index expires runs after `SCRAPE_LOG_RETENTION_DAYS` (default 30) — an hourly cron writes ~720 documents a month
+- [x] `GET /api/admin/sources/scrape-runs` — paginated, ADMIN only
+- [x] `/admin/logs` — run table with expandable per-source detail, auto-refreshing every 30s
+- [x] A source that discovers **zero links** is flagged as degraded even though it raises no error. That is precisely how a silently broken adapter presents, and it is what went unnoticed with Arsenal
+
 ### Remaining
-- [ ] Bookmarks page (`app/(protected)/bookmarks/page.tsx`) — grid with unsave action, wired to `GET /api/bookmarks` (paginated) and `DELETE /api/bookmarks/:id`. The endpoints and `GET /api/bookmarks/ids` are done and tested; only the page is missing
-- [ ] Toast notifications (`specs/admin-panel.md §4`) — the dashboard currently uses an inline status banner
-- [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`)
-- [ ] System Logs screen — **needs a backend first**: scrape results only go to stdout, nothing is persisted, so there is no API for this screen to read (`specs/admin-panel.md §6`)
+- [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`) — now worth doing, since there are two real destinations to move between
 - [ ] Dark mode toggle — tracked in [Phase 5b](#phase-5b-dark--light-mode-toggle--todo)
 
-**What this gives you:** An administrator can sign in and manage scraping sources
-entirely through the UI — add, test, edit, activate and delete — with no code
-change or database access. Bookmarks remain API-only until the page lands.
+**What this gives you:** An administrator can sign in, manage scraping sources
+entirely through the UI — add, test, edit, activate and delete — and see what the
+scraper actually did on every run, including which sources are failing. Users can
+save articles and revisit them from a dedicated page.
 
 ---
 
