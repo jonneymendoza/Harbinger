@@ -17,5 +17,6 @@ export interface NewsListResponse {
   articles: Article[];
   totalArticles: number;
   currentPage: number;
+  pageSize: number;
   totalPages: number;
 }

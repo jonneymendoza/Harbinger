@@ -13,14 +13,21 @@ async function fetcher(url: string): Promise<NewsListResponse> {
   return json?.data ?? json;
 }
 
-export function useNewsFeed(page: number = 1, limit: number = 20) {
+export const FEED_PAGE_SIZE = 20;
+
+export function useNewsFeed(page: number = 1, limit: number = FEED_PAGE_SIZE) {
   const url = `${API_URL}/news?page=${page}&limit=${limit}`;
-  const { data, error, isLoading, mutate } = useSWR<NewsListResponse>(url, fetcher);
+  const { data, error, isLoading, mutate } = useSWR<NewsListResponse>(url, fetcher, {
+    // Keep the previous page visible while the next one loads, so paging does
+    // not flash the whole grid back to skeletons.
+    keepPreviousData: true,
+  });
 
   return {
     articles: data?.articles ?? [],
     totalArticles: data?.totalArticles ?? 0,
     currentPage: data?.currentPage ?? page,
+    pageSize: data?.pageSize ?? limit,
     totalPages: data?.totalPages ?? 1,
     isLoading,
     isError: !!error,

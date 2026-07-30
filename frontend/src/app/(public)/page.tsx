@@ -4,13 +4,16 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 import { Button, Card } from '@/shared/ui';
 import Link from 'next/link';
-import { useNewsFeed } from '@/features/feed/useNewsFeed';
+import { useNewsFeed, FEED_PAGE_SIZE } from '@/features/feed/useNewsFeed';
+import { Pagination } from '@/features/feed/ui/Pagination';
 import { Article } from '@/features/feed/types';
 import { api } from '@/shared/api/client';
 
 export default function PublicPage() {
   const { status, isAuthenticated, isGuest, setGuestToken, triggerUpgradePrompt } = useAuth();
-  const { articles, isLoading, isError } = useNewsFeed(1, 20);
+  const [page, setPage] = useState(1);
+  const { articles, isLoading, isError, currentPage, totalPages, totalArticles, pageSize } =
+    useNewsFeed(page, FEED_PAGE_SIZE);
 
   /** Track per-article bookmark states locally for instant UI feedback */
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
@@ -152,6 +155,20 @@ export default function PublicPage() {
               </Link>
             ))}
           </div>
+        )}
+
+        {!isLoading && !isError && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalArticles={totalArticles}
+            pageSize={pageSize}
+            disabled={isLoading}
+            onPageChange={(next) => {
+              setPage(next);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         )}
       </section>
     </main>

@@ -15,15 +15,17 @@ import adminSourcesRouter from '@domains/sources/routes/admin.route';
 import newsRouter from '@domains/news/routes/news.route';
 import { authMiddleware, checkRole } from '@infrastructure/middleware/authMiddleware';
 import { errorHandler, notFoundHandler } from '@shared/errors/errorHandler';
-import { initScraperCron } from '@cron/scraperCron';
+import { initScraperCron, scheduleInitialScrape } from '@cron/scraperCron';
 
 const app = express();
 
 export async function bootstrap() {
   await connectDB();
 
-  // Initialize scraper cron job
+  // Initialize scraper cron job, then backfill immediately so a freshly
+  // started stack serves articles without waiting for the first cron tick.
   initScraperCron();
+  scheduleInitialScrape();
 
   app.use(helmet());
 

@@ -5,14 +5,19 @@ import { AppError } from '@shared/errors/appError';
 
 const router = Router();
 
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
 /**
  * GET /api/news
  * Fetch a paginated list of recent articles.
  */
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    // Clamp both: a negative page yields a negative skip (which Mongo rejects)
+    // and an unbounded limit lets one request read the whole collection.
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.limit as string, 10) || DEFAULT_PAGE_SIZE));
     const skip = (page - 1) * limit;
 
     const [articles, total] = await Promise.all([
@@ -38,7 +43,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         })),
         totalArticles: total,
         currentPage: page,
-        totalPages: Math.ceil(total / limit),
+        pageSize: limit,
+        // Always at least 1 so an empty feed still reads as "page 1 of 1".
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
       error: null,
     });
