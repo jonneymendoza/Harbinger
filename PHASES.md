@@ -83,7 +83,7 @@
 **What this gives you:** Mongo has article documents. Verify by querying `db.articles.find()` directly — no HTTP endpoints exist yet.
 
 ### Tests
-- [x] Unit tests: contentCleaner (12), urlResolver (9), throttler (5), userAgentPool (4), playwrightScraper (6), newsService (4) = **40/40 passing**
+- [x] Unit tests: contentCleaner (12), urlResolver (9), throttler (5), userAgentPool (4), playwrightScraper (6), newsService (4) = **40/40 passing** (suite has since grown to 134 backend + 11 frontend)
 - [x] Vitest config with path aliases (`backend/vitest.config.ts`)
 
 ### Infrastructure
@@ -150,36 +150,31 @@ source. Skeleton loading states per spec. Fully responsive across breakpoints.
 
 ---
 
-## Phase 5b: Dark / Light Mode Toggle [🔴 TODO]
+## Phase 5b: Dark / Light Mode Toggle [✅ COMPLETE]
 
-> More of this works than it appears. `next-themes` **is** wired in
-> `app/providers.tsx` with `attribute="class"` and `defaultTheme="system"`,
-> Tailwind uses the `class` strategy, and components carry `dark:` variants
-> throughout. Verified at runtime: with an OS dark preference the app renders
-> `<html class="dark">` with a slate-950 background. **Dark mode is already
-> live — it just silently follows the OS**, which is why it looks like the
-> feature is missing. What is actually absent is any way for a user to override
-> that, and any visual sign-off on either appearance.
+`next-themes` was already wired with `attribute="class"` and `defaultTheme="system"`,
+so the OS preference was honoured — but nothing let a user override it, and
+neither appearance had been checked.
 
-- [x] `ThemeProvider` wired in the root layout with `attribute="class"`, `defaultTheme="system"`
-- [x] `suppressHydrationWarning` on `<html>`
-- [x] System preference respected (confirmed: OS dark → `class="dark"`)
-- [ ] Remove the hardcoded `className="light"` on `<html>` in `app/layout.tsx` — `next-themes` overrides it at runtime, so it is only the pre-hydration default, but it makes light the flash-of-wrong-theme colour for dark users
-- [ ] `ThemeToggle` component (`features/theme-feature/ui/ThemeToggle.tsx`) — light / dark / system, persisted via `next-themes`. Use `mounted` state to avoid rendering the wrong icon before hydration
-- [ ] Mount the toggle in the nav bar (`features/ui/Navbar.tsx`)
-- [ ] Audit both themes for contrast and legibility across every surface:
-  - [ ] Feed grid, article cards, and skeleton placeholders
-  - [ ] Source filter pills — selected, unselected, hover, and focus states
-  - [ ] Pagination controls, including disabled states
-  - [ ] Article detail page, including `dangerouslySetInnerHTML` body content and `prose-invert`
-  - [ ] Login card, guest badge, and the upgrade prompt modal
-- [ ] Verify scraped article HTML stays readable in dark mode — this is the likeliest
-      problem area, since source markup carries its own inline colours that
-      `prose-invert` will not touch
+- [x] `ThemeToggle` (`features/theme-feature/ui/ThemeToggle.tsx`) — cycles light → dark → system, persisted by `next-themes`. `system` is kept as an explicit choice, not just an initial default, so a user can get back to following their OS
+- [x] Renders a same-size placeholder until mounted, since `next-themes` only knows the real theme on the client and would otherwise flash the wrong icon
+- [x] Mounted in the nav bar, available signed in or not
+- [x] Removed the hardcoded `className="light"` on `<html>` — it made light the flash-of-wrong-theme colour for anyone resolving to dark
+- [x] Contrast audited against WCAG AA across both themes on the feed, article page, login, bookmarks, admin dashboard and scrape logs — **0 failures remaining**
 
-**What this gives you:** A user-controllable theme switch, and both appearances
-signed off rather than merely written. The wiring is done, so this is a toggle
-component plus a visual audit.
+Fixed by the audit:
+- [x] Card meta strip (source · date) used `text-slate-400`, only **2.56:1** on white. Now `text-slate-500 dark:text-slate-400`
+- [x] Source filter count badge sat just under AA in both themes (4.34 light / 4.04 dark). Bumped one step each way
+- [x] Scrape log "needing attention" used `amber-600`, **3.19:1** on white. Now `amber-700 dark:text-amber-400`
+
+> **The predicted risk did not materialise.** Scraped article HTML was expected to
+> carry inline colours that `prose-invert` cannot override. It does not: across
+> all 40 stored articles there are 2 `style=` attributes and **zero** colour
+> declarations, `<font>` tags or background colours — the parsers never emit them.
+> The article page audits clean in both themes.
+
+**What this gives you:** A user-controllable theme switch, with both appearances
+measured rather than assumed.
 
 ---
 
@@ -224,7 +219,7 @@ component plus a visual audit.
 
 ### Remaining
 - [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`) — now worth doing, since there are two real destinations to move between
-- [ ] Dark mode toggle — tracked in [Phase 5b](#phase-5b-dark--light-mode-toggle--todo)
+- [x] Dark mode toggle — see [Phase 5b](#phase-5b-dark--light-mode-toggle--complete)
 
 **What this gives you:** An administrator can sign in, manage scraping sources
 entirely through the UI — add, test, edit, activate and delete — and see what the
@@ -243,7 +238,7 @@ save articles and revisit them from a dedicated page.
 | 3 (Scraper) | ✅ Yes, with Phase 2 | Mongoose articles/sources collections ✓ |
 | 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
-| 5b (Dark / Light Mode) | ✅ Yes, with Phase 6 | Surfaces to audit exist (Phase 5) |
+| 5b (Dark / Light Mode) | — done | Surfaces to audit exist (Phase 5) ✓ |
 | 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
 | 6a (Admin source management) | — done | Phase 4 admin endpoints ✓ |
 

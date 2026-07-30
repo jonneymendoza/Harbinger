@@ -71,8 +71,8 @@ export function SourceFilter({
                 'rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums transition-colors',
                 isSelected
                   ? 'bg-white/20 text-white'
-                  : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-700 ' +
-                    'dark:bg-slate-700 dark:text-slate-400 dark:group-hover:bg-slate-600 dark:group-hover:text-indigo-300',
+                  : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 ' +
+                    'dark:bg-slate-700 dark:text-slate-300 dark:group-hover:bg-slate-600 dark:group-hover:text-indigo-300',
               ].join(' ')}
             >
               {option.count}

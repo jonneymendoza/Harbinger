@@ -19,7 +19,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className="light">
+    // No theme class here: next-themes sets it before paint from the stored
+    // preference or the OS. Hardcoding "light" made light the flash-of-wrong-theme
+    // colour for anyone whose resolved theme is dark.
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} font-sans antialiased bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100`}
       >
