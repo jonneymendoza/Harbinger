@@ -31,7 +31,7 @@
 
 ### Frontend
 - [x] Next.js app scaffold + Tailwind config (`tailwind.config.ts`, `_app.tsx`)
-- [x] `next-themes` config for dark/light mode (per `specs/frontend-ui.md §2.A`)
+- [~] `next-themes` installed and Tailwind `class` strategy configured (per `specs/frontend-ui.md §2.A`) — dependency and config only; no toggle is wired up and neither theme has been verified end to end. Tracked in [Phase 5b](#phase-5b-dark--light-mode--todo).
 - [x] Login page UI — centered card with 3 social buttons (`features/auth-feature/ui/AuthButtons.tsx`)
 - [x] API client wrapper (`shared/api/client.ts`) — singleton fetch, JWT injection, error mapping to `{success,data,error}` response format
 - [x] AuthContext with three states: authenticated, guest, anonymous
@@ -128,7 +128,33 @@
 - [ ] Article tile component (thumbnail image + title + source + date, hover zoom effect)
 - [ ] Article detail page — hero image, rendered HTML content, back-to-feed button
 
-**What this gives you:** Visually browse articles with dark mode. Skeleton loading states per spec. Fully responsive across breakpoints.
+**What this gives you:** Visually browse articles. Skeleton loading states per spec. Fully responsive across breakpoints.
+
+---
+
+## Phase 5b: Dark / Light Mode [🔴 TODO]
+
+`next-themes` is installed and Tailwind's `class` strategy is configured, and
+components are already written with `dark:` variants throughout — but **nothing
+switches the theme**, so only one appearance is currently reachable and the dark
+variants have never been exercised.
+
+- [ ] `ThemeProvider` wired in the root layout (`app/providers.tsx`) with `attribute="class"`, `defaultTheme="system"`, and `enableSystem`
+- [ ] Add `suppressHydrationWarning` to `<html>` — `next-themes` sets the class before React hydrates and will otherwise log a mismatch
+- [ ] `ThemeToggle` component (`features/theme-feature/ui/ThemeToggle.tsx`) — light / dark / system, persisted via `next-themes`
+- [ ] Mount the toggle in the nav bar
+- [ ] Guard against the flash of the wrong theme on first paint
+- [ ] Audit both themes for contrast and legibility across every surface:
+  - [ ] Feed grid, article cards, and skeleton placeholders
+  - [ ] Source filter pills — selected, unselected, hover, and focus states
+  - [ ] Pagination controls, including disabled states
+  - [ ] Article detail page, including `dangerouslySetInnerHTML` body content and `prose-invert`
+  - [ ] Login card, guest badge, and the upgrade prompt modal
+- [ ] Verify scraped article HTML stays readable in dark mode (source markup carries its own inline colours)
+
+**What this gives you:** A working theme switch, with both appearances actually
+verified rather than only written. Worth doing as its own pass — the `dark:`
+classes already exist everywhere, so this is mostly wiring plus a visual audit.
 
 ---
 
@@ -143,7 +169,8 @@
   - [ ] Source editor form with CSS selector inputs + validation
   - [ ] "Test Scrape" button → triggers `POST /api/admin/sources/test` → shows preview of scraped title and image
   - [ ] Delete source confirmation UI
-- [ ] Dark mode toggle (`features/theme-feature/ui/ThemeToggle.tsx`) — persists via `next-themes`
+- [ ] Admin source form fields for `adapter`, `displayName`, and `articleLimit` (see `GET /api/admin/sources/adapters` for the adapter list and which ones need selectors)
+- [ ] Dark mode toggle — tracked in [Phase 5b](#phase-5b-dark--light-mode--todo)
 
 **What this gives you:** Complete application. Authenticate → browse feed → bookmark articles → manage scraping sources as admin. All specs fully implemented and tested.
 
@@ -159,7 +186,8 @@
 | 3 (Scraper) | ✅ Yes, with Phase 2 | Mongoose articles/sources collections ✓ |
 | 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
+| 5b (Dark / Light Mode) | ✅ Yes, with Phase 6 | Surfaces to audit exist (Phase 5) |
 | 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
 
-**Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6
+**Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6 (5b can land any time after 5)
 **Ways to speed up:** Implement phases 2 and 3 in parallel since neither depends on the other. Start frontend pages (phase 5) while phase 4 routes are still being built — mock API responses first, wire to real endpoints later.

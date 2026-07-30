@@ -65,9 +65,14 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { name, baseUrl, articleLinkSelector, contentSelector, titleSelector, imageSelector, isActive } = req.body as SourceInput;
     const adapter = (req.body as SourceInput).adapter || DEFAULT_ADAPTER_KEY;
+    const articleLimit = (req.body as SourceInput).articleLimit;
 
     if (!name || !baseUrl) {
       return next(AppError.badRequest('Missing required fields: name, baseUrl'));
+    }
+
+    if (articleLimit !== undefined && (!Number.isInteger(articleLimit) || articleLimit < 1 || articleLimit > 200)) {
+      return next(AppError.badRequest('articleLimit must be an integer between 1 and 200'));
     }
 
     if (!isKnownAdapter(adapter)) {
@@ -94,8 +99,10 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const result = await db.collection('sources').insertOne({
       name,
+      displayName: (req.body as SourceInput).displayName || name,
       baseUrl,
       adapter,
+      ...(articleLimit ? { articleLimit } : {}),
       articleLinkSelector: articleLinkSelector || '',
       contentSelector: contentSelector || '',
       titleSelector: titleSelector || '',
@@ -133,7 +140,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const updateFields: Partial<SourceInput> = {};
-    const allowedFields: (keyof SourceInput)[] = ['name', 'baseUrl', 'adapter', 'articleLinkSelector', 'contentSelector', 'titleSelector', 'imageSelector', 'isActive'];
+    const allowedFields: (keyof SourceInput)[] = ['name', 'displayName', 'baseUrl', 'adapter', 'articleLimit', 'articleLinkSelector', 'contentSelector', 'titleSelector', 'imageSelector', 'isActive'];
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
