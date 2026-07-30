@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/features/auth/lib/AuthContext';
 import { AuthButtons } from './AuthButtons';
+import { CredentialLoginForm } from './CredentialLoginForm';
 import { UserMinus } from 'lucide-react';
 
 export function LoginCard() {
@@ -42,6 +43,10 @@ export function LoginCard() {
         <UserMinus size={20} />
         <span>Continue as Guest</span>
       </button>
+
+      <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-700">
+        <CredentialLoginForm />
+      </div>
     </div>
   );
 }

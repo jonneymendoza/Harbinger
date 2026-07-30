@@ -27,10 +27,12 @@ export function useBookmarks() {
     if (!isAuthenticated) return;
 
     try {
-      const response = await api.auth.get<Article[]>('/bookmarks');
-      if (response.success && response.data && Array.isArray(response.data)) {
-        const ids = new Set<string>(response.data.map((a: Article) => a.id));
-        setState(prev => ({ ...prev, bookmarkedIds: ids }));
+      // Only the ids are needed to mark cards; GET /bookmarks returns a
+      // paginated envelope of full articles, which would both be the wrong
+      // shape here and miss anything past the first page.
+      const response = await api.auth.get<{ ids: string[] }>('/bookmarks/ids');
+      if (response.success && Array.isArray(response.data?.ids)) {
+        setState(prev => ({ ...prev, bookmarkedIds: new Set(response.data!.ids) }));
       }
     } catch {
       // Silently fail — user can retry
@@ -73,8 +75,8 @@ export function useBookmarks() {
 
           throw new Error(response.error?.message || 'Failed to remove bookmark');
         } else {
-          // Add bookmark — POST /api/bookmarks/:articleId
-          const response = await api.auth.post<BookmarkResult>(`/bookmarks/${articleId}`, {});
+          // Add bookmark — POST /api/bookmarks with { articleId } in the body
+          const response = await api.auth.post<BookmarkResult>('/bookmarks', { articleId });
           
           if (response.success) {
             setState(prev => ({

@@ -13,17 +13,21 @@ import authRoutes from '@domains/auth/routes/index';
 import healthRouter from '@domains/health/route';
 import adminSourcesRouter from '@domains/sources/routes/admin.route';
 import newsRouter from '@domains/news/routes/news.route';
+import { createBookmarkRouter } from '@domains/bookmarks/routes/bookmark.route';
+import { BookmarkRepository } from '@infrastructure/repositories/bookmarkRepository';
 import { authMiddleware, checkRole } from '@infrastructure/middleware/authMiddleware';
 import { errorHandler, notFoundHandler } from '@shared/errors/errorHandler';
-import { initScraperCron } from '@cron/scraperCron';
+import { initScraperCron, scheduleInitialScrape } from '@cron/scraperCron';
 
 const app = express();
 
 export async function bootstrap() {
   await connectDB();
 
-  // Initialize scraper cron job
+  // Initialize scraper cron job, then backfill immediately so a freshly
+  // started stack serves articles without waiting for the first cron tick.
   initScraperCron();
+  scheduleInitialScrape();
 
   app.use(helmet());
 
@@ -44,6 +48,10 @@ export async function bootstrap() {
   app.use('/api/health', healthRouter);
   app.use('/api/auth', authRoutes);
   app.use('/api/news', newsRouter);
+  // specs/api-endpoints.md §4 puts these at /api/bookmarks; they were
+  // previously reachable only under /api/auth/bookmarks, so every client call
+  // 404'd.
+  app.use('/api/bookmarks', createBookmarkRouter(new BookmarkRepository()));
   // Admin source management is privileged: every route below requires a valid
   // JWT carrying the ADMIN role (PRD §4.B).
   app.use('/api/admin/sources', authMiddleware, checkRole(['ADMIN']), adminSourcesRouter);

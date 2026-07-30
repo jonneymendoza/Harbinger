@@ -3,9 +3,13 @@ import { Types } from 'mongoose';
 export interface Source {
   _id: Types.ObjectId;
   name: string;
+  /** Short label shown in the UI. Falls back to `name`. */
+  displayName?: string;
   baseUrl: string;
   /** Key of the scraping adapter that handles this source. */
   adapter: string;
+  /** Per-source override for SCRAPER_ARTICLE_LIMIT. */
+  articleLimit?: number;
   articleLinkSelector: string;
   contentSelector: string;
   titleSelector: string;
@@ -16,8 +20,10 @@ export interface Source {
 
 export interface SourceInput {
   name: string;
+  displayName?: string;
   baseUrl: string;
   adapter?: string;
+  articleLimit?: number;
   /** Required only by the selector-driven `generic` adapter. */
   articleLinkSelector?: string;
   contentSelector?: string;

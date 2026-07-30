@@ -1,11 +1,11 @@
 'use client';
 
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 
 export default function Navbar() {
-  const { status, isGuest, triggerUpgradePrompt, logout } = useAuth();
+  const { status, isAdmin, triggerUpgradePrompt, logout } = useAuth();
 
   return (
     <nav className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur">
@@ -17,6 +17,18 @@ export default function Navbar() {
 
         {/* Auth indicator */}
         <div className="flex items-center gap-3">
+          {/* Admin entry point. Hidden for everyone else — the route is guarded
+              client-side and every request is re-checked server-side. */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Settings size={15} />
+              <span>Admin</span>
+            </Link>
+          )}
+
           {status === 'IS_GUEST' && (
             <>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800">

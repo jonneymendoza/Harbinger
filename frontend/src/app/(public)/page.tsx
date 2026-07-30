@@ -4,13 +4,19 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 import { Button, Card } from '@/shared/ui';
 import Link from 'next/link';
-import { useNewsFeed } from '@/features/feed/useNewsFeed';
+import { useNewsFeed, useFeedSources, FEED_PAGE_SIZE } from '@/features/feed/useNewsFeed';
+import { Pagination } from '@/features/feed/ui/Pagination';
+import { SourceFilter } from '@/features/feed/ui/SourceFilter';
 import { Article } from '@/features/feed/types';
 import { api } from '@/shared/api/client';
 
 export default function PublicPage() {
   const { status, isAuthenticated, isGuest, setGuestToken, triggerUpgradePrompt } = useAuth();
-  const { articles, isLoading, isError } = useNewsFeed(1, 20);
+  const [page, setPage] = useState(1);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const { sources, totalArticles: allSourcesTotal } = useFeedSources();
+  const { articles, isLoading, isError, currentPage, totalPages, totalArticles, pageSize } =
+    useNewsFeed(page, FEED_PAGE_SIZE, sourceId);
 
   /** Track per-article bookmark states locally for instant UI feedback */
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
@@ -54,7 +60,8 @@ export default function PublicPage() {
         success = response.success;
       } else {
         // Add bookmark — POST /api/bookmarks/:articleId
-        const response = await api.auth.post(`/bookmarks/${articleId}`, {});
+        // POST /api/bookmarks takes the id in the body, per specs/api-endpoints.md §4
+        const response = await api.auth.post('/bookmarks', { articleId });
         if (response.error?.code === 'GUEST_UPGRADE_REQUIRED') {
           triggerUpgradePrompt();
           return;
@@ -109,6 +116,19 @@ export default function PublicPage() {
         {/* Anonymous visitors browse the same feed as everyone else — gating it
             behind a session left them staring at a permanent loading state. */}
         <h2 className="mb-6 text-xl font-semibold text-slate-900 dark:text-white">Latest Articles</h2>
+
+        <SourceFilter
+          sources={sources}
+          selectedId={sourceId}
+          totalArticles={allSourcesTotal}
+          disabled={isLoading}
+          onSelect={(next) => {
+            setSourceId(next);
+            // Page 4 of "All" may not exist once filtered to one source.
+            setPage(1);
+          }}
+        />
+
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -152,6 +172,20 @@ export default function PublicPage() {
               </Link>
             ))}
           </div>
+        )}
+
+        {!isLoading && !isError && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalArticles={totalArticles}
+            pageSize={pageSize}
+            disabled={isLoading}
+            onPageChange={(next) => {
+              setPage(next);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         )}
       </section>
     </main>

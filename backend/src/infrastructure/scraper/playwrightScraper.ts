@@ -29,12 +29,18 @@ export class PlaywrightScraper implements IScraperStrategy {
 
   async scrapeLinks(baseUrl: string, source: Source): Promise<ScrapedLink[]> {
     const adapter = resolveAdapterForSource(source);
-    console.log(`[Scraper] ${source.name}: discovering via "${adapter.descriptor.key}" adapter`);
+    // A source may raise its own ceiling: listings that mix articles with
+    // non-article pages need more candidates to yield the same article count.
+    const limit = source.articleLimit && source.articleLimit > 0 ? source.articleLimit : this.linkLimit;
+
+    console.log(
+      `[Scraper] ${source.name}: discovering via "${adapter.descriptor.key}" adapter (limit ${limit})`,
+    );
 
     const links = await adapter.discoverLinks(
       { ...source, baseUrl: baseUrl || source.baseUrl },
       this.adapterContext(),
-      this.linkLimit,
+      limit,
     );
 
     const usable = links.filter((l) => l.href && l.title);

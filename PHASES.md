@@ -31,7 +31,7 @@
 
 ### Frontend
 - [x] Next.js app scaffold + Tailwind config (`tailwind.config.ts`, `_app.tsx`)
-- [x] `next-themes` config for dark/light mode (per `specs/frontend-ui.md §2.A`)
+- [x] `next-themes` config for dark/light mode (per `specs/frontend-ui.md §2.A`) — provider wired with `attribute="class"` and `defaultTheme="system"`, so the OS preference is honoured. The user-facing toggle is [Phase 5b](#phase-5b-dark--light-mode-toggle--todo).
 - [x] Login page UI — centered card with 3 social buttons (`features/auth-feature/ui/AuthButtons.tsx`)
 - [x] API client wrapper (`shared/api/client.ts`) — singleton fetch, JWT injection, error mapping to `{success,data,error}` response format
 - [x] AuthContext with three states: authenticated, guest, anonymous
@@ -92,60 +92,128 @@
 
 ---
 
-## Phase 4: API Endpoints [🔴 TODO]
+## Phase 4: API Endpoints [✅ COMPLETE]
 
 ### All endpoints (per `specs/api-endpoints.md`)
-- [ ] **Public News**
-  - [ ] `GET /api/news` — paginated article list with standard response wrapper (limit-offset pagination)
-  - [ ] `GET /api/news/:id` — full article with hero image, contentImages[], fullContent
-- [ ] **Bookmarks (requires JWT)**
-  - [ ] `POST /api/bookmarks` — `{articleId}`
-  - [ ] `GET /api/bookmarks` — user's saved articles
-  - [ ] `DELETE /api/bookmarks/:id` — remove bookmark
-- [ ] **Admin Sources (requires ADMIN role)**
-  - [ ] `GET /api/admin/sources`
-  - [ ] `POST /api/admin/sources` — add source with CSS selectors
-  - [ ] `PUT /api/admin/sources/:id`
-  - [ ] `DELETE /api/admin/sources/:id`
-  - [ ] `POST /api/admin/sources/test` — live test endpoint that spins up a temporary Playwright instance with the provided selectors
+- [x] **Public News**
+  - [x] `GET /api/news` — paginated article list with standard response wrapper (limit-offset pagination). Also returns `pageSize`; `page`/`limit` are clamped (max 100/page) so a negative page cannot produce a negative skip and one request cannot read the whole collection
+  - [x] `GET /api/news/:id` — full article with hero image, contentImages[], fullContent, plus `summary` and `sourceName`
+  - [x] `GET /api/news?source=<id>` — filter the feed to one source (rejects an unrecognised id rather than returning everything)
+  - [x] `GET /api/news/sources` — active sources that have articles, for building feed filters
+- [x] **Bookmarks (requires JWT)** — mounted at `/api/bookmarks`, guarded by `authMiddleware` + `checkRole(['USER','ADMIN'])`
+  - [x] `POST /api/bookmarks` — `{articleId}` in the body, returns 201, idempotent
+  - [x] `GET /api/bookmarks` — user's saved articles, same paginated envelope as `GET /api/news`
+  - [x] `DELETE /api/bookmarks/:id` — remove bookmark (404 when not bookmarked)
+  - [x] `DELETE /api/bookmarks` — clear all
+  - [x] `GET /api/bookmarks/ids` — just the bookmarked ids, so the feed can mark cards without fetching every article
+- [x] **Admin Sources (requires ADMIN role)**
+  - [x] `GET /api/admin/sources`
+  - [x] `POST /api/admin/sources` — add source (selectors required only for the `generic` adapter)
+  - [x] `PUT /api/admin/sources/:id`
+  - [x] `DELETE /api/admin/sources/:id`
+  - [x] `PATCH /api/admin/sources/:id/toggle` — flip `isActive`
+  - [x] `POST /api/admin/sources/test` — live test endpoint that spins up a temporary Playwright instance with the provided configuration
+  - [x] `POST /api/admin/sources/run-scraper` — trigger the pipeline manually
+  - [x] `GET /api/admin/sources/adapters` — available adapters and whether each needs CSS selectors
+- [x] Global error handler — every failure returns `{success,data,error}` with the codes from `specs/api-endpoints.md §6` (401 for a missing/invalid token, 403 for authenticated-but-unprivileged)
+- [x] Route tests (`vitest` + `supertest`) — 67 tests covering auth codes per verb, pagination and clamping, source filtering, validation, cross-user isolation, and 500 propagation
 
-**What this gives you:** Every route in `specs/api-endpoints.md` working, tested with curl. Standard response wrapper (`{success,data,error}`) applied everywhere.
+**What this gives you:** Every route in `specs/api-endpoints.md` working, with automated coverage rather than only manual curl. Standard response wrapper (`{success,data,error}`) applied everywhere, including error paths.
 
----
-
-## Phase 5: Frontend Public Pages [🔴 TODO]
-
-- [ ] Next.js App Router pages scaffold:
-  - [ ] `(public)/page.tsx` — Home/Feed page
-  - [ ] `article/[id]/page.tsx` — Article detail view
-  - [ ] Layout structure with nav bar (logo, dark mode toggle, login/profile button)
-- [ ] Shared UI primitives (`shared/ui/`) — Button, Card, Input per Tailwind theme spec
-- [ ] Data fetching:
-  - [ ] Server Components for initial page data loads (per `PRD.md §6.B RSC rules`)
-  - [ ] SWR hooks (`features/feed-feature/api/useArticles.ts`) for cached navigation
-  - [ ] Skeleton loading states (gray pulsing placeholders, per `specs/frontend-ui.md §4.B`)
-- [ ] News grid — responsive CSS grid (3–4 cols desktop, 2 tablet, 1 mobile)
-- [ ] Article tile component (thumbnail image + title + source + date, hover zoom effect)
-- [ ] Article detail page — hero image, rendered HTML content, back-to-feed button
-
-**What this gives you:** Visually browse articles with dark mode. Skeleton loading states per spec. Fully responsive across breakpoints.
+> **Known gap (tracked in Phase 6):** there is no way to *obtain* an ADMIN token
+> through the app — auth is OAuth-only and the bootstrapped admin account has no
+> login route. The admin endpoints are correct and tested, but currently
+> unreachable without minting a JWT by hand.
 
 ---
 
-## Phase 6: Protected + Admin UI [🔴 TODO]
+## Phase 5: Frontend Public Pages [🟡 MOSTLY DONE]
 
-- [ ] `/auth/login` page — social login buttons complete (redirects → popup → receive JWT → store in localStorage)
-- [ ] Bookmarks page (`protected/bookmarks/page.tsx`) — filtered grid with unsave action
-- [ ] Auth state management (`features/auth-feature/lib/authContext.tsx`) — stores token + user role globally
-- [ ] `AdminGuard` HOC / route wrapper (per `specs/admin-panel.md:8`) — redirects non-admins to `/auth/login`
-- [ ] Admin dashboard (`admin/page.tsx`):
-  - [ ] Sources table (name, URL, active status, date added)
-  - [ ] Source editor form with CSS selector inputs + validation
-  - [ ] "Test Scrape" button → triggers `POST /api/admin/sources/test` → shows preview of scraped title and image
-  - [ ] Delete source confirmation UI
-- [ ] Dark mode toggle (`features/theme-feature/ui/ThemeToggle.tsx`) — persists via `next-themes`
+- [x] Next.js App Router pages scaffold:
+  - [x] `(public)/page.tsx` — Home/Feed page
+  - [x] `article/[id]/page.tsx` — Article detail view
+  - [~] Layout structure with nav bar (`features/ui/Navbar.tsx`) — logo and login/profile present; **dark mode toggle missing** (see [Phase 5b](#phase-5b-dark--light-mode-toggle--todo))
+- [x] Shared UI primitives (`shared/ui/`) — `Button`, `Card`, `Input`
+- [~] Data fetching:
+  - [ ] Server Components for initial page data loads (per `PRD.md §6.B RSC rules`) — **not done**: both pages are `"use client"` and fetch via SWR, so the first paint is a skeleton rather than server-rendered content. Worth revisiting for SEO on the article page
+  - [x] SWR hooks (`features/feed/useNewsFeed.ts`) for cached navigation, with `keepPreviousData` so paging does not flash back to skeletons
+  - [x] Skeleton loading states (gray pulsing placeholders, per `specs/frontend-ui.md §4.B`)
+- [x] News grid — responsive CSS grid (4 cols desktop, 3 laptop, 2 tablet, 1 mobile)
+- [x] Article tile component (thumbnail image + title + summary + source + date, hover zoom effect)
+- [x] Article detail page — hero image, rendered HTML content, back-to-feed button
+- [x] Feed pagination — 20 per page, page numbers with ellipses, prev/next, "showing X–Y of Z"
+- [x] Source filter pills — derived from `GET /api/news/sources`, so a new source adds its own filter with no frontend change
 
-**What this gives you:** Complete application. Authenticate → browse feed → bookmark articles → manage scraping sources as admin. All specs fully implemented and tested.
+**What this gives you:** Visually browse and page through articles, filtered by
+source. Skeleton loading states per spec. Fully responsive across breakpoints.
+
+---
+
+## Phase 5b: Dark / Light Mode Toggle [🔴 TODO]
+
+> More of this works than it appears. `next-themes` **is** wired in
+> `app/providers.tsx` with `attribute="class"` and `defaultTheme="system"`,
+> Tailwind uses the `class` strategy, and components carry `dark:` variants
+> throughout. Verified at runtime: with an OS dark preference the app renders
+> `<html class="dark">` with a slate-950 background. **Dark mode is already
+> live — it just silently follows the OS**, which is why it looks like the
+> feature is missing. What is actually absent is any way for a user to override
+> that, and any visual sign-off on either appearance.
+
+- [x] `ThemeProvider` wired in the root layout with `attribute="class"`, `defaultTheme="system"`
+- [x] `suppressHydrationWarning` on `<html>`
+- [x] System preference respected (confirmed: OS dark → `class="dark"`)
+- [ ] Remove the hardcoded `className="light"` on `<html>` in `app/layout.tsx` — `next-themes` overrides it at runtime, so it is only the pre-hydration default, but it makes light the flash-of-wrong-theme colour for dark users
+- [ ] `ThemeToggle` component (`features/theme-feature/ui/ThemeToggle.tsx`) — light / dark / system, persisted via `next-themes`. Use `mounted` state to avoid rendering the wrong icon before hydration
+- [ ] Mount the toggle in the nav bar (`features/ui/Navbar.tsx`)
+- [ ] Audit both themes for contrast and legibility across every surface:
+  - [ ] Feed grid, article cards, and skeleton placeholders
+  - [ ] Source filter pills — selected, unselected, hover, and focus states
+  - [ ] Pagination controls, including disabled states
+  - [ ] Article detail page, including `dangerouslySetInnerHTML` body content and `prose-invert`
+  - [ ] Login card, guest badge, and the upgrade prompt modal
+- [ ] Verify scraped article HTML stays readable in dark mode — this is the likeliest
+      problem area, since source markup carries its own inline colours that
+      `prose-invert` will not touch
+
+**What this gives you:** A user-controllable theme switch, and both appearances
+signed off rather than merely written. The wiring is done, so this is a toggle
+component plus a visual audit.
+
+---
+
+## Phase 6: Protected + Admin UI [🟡 IN PROGRESS]
+
+### Admin source management [✅ DONE]
+- [x] **Admin sign-in** — `POST /api/auth/login` verifies `passwordHash` against `provider: 'local'` accounts and issues a role-bearing token. Unblocks the whole phase: `ADMIN_USER`/`ADMIN_PASS` seed an admin, but OAuth can never reach it, so the Phase 4 admin endpoints previously needed a hand-minted JWT. Failures are indistinguishable between unknown account and wrong password, and the route has its own rate limit (10 per 15 min)
+- [x] Credential form on the login page (`features/auth/ui/CredentialLoginForm.tsx`) — collapsed by default so social stays primary; routes admins to `/admin` on success
+- [x] Auth state tracks `role`, exposing `isAdmin` (`features/auth/lib/AuthContext.tsx`)
+- [x] `AdminGuard` route wrapper (`features/admin/ui/AdminGuard.tsx`) — distinguishes "sign in required" from "admin only", and waits for the localStorage restore so a signed-in admin never sees a false denial
+- [x] Admin dashboard (`app/(admin)/admin/page.tsx`):
+  - [x] Sources table — name, display name, URL, adapter, limit, status, date added
+  - [x] Source editor form with validation (URL format, limit range, selectors required only when the adapter needs them)
+  - [x] Adapter picker driven by `GET /api/admin/sources/adapters`; the CSS selector block appears only for `requiresSelectors` adapters
+  - [x] `displayName` and `articleLimit` fields
+  - [x] "Test Scrape" → `POST /api/admin/sources/test` → preview of title, hero image, summary, character count
+  - [x] Toggle active/inactive, and delete behind a confirm step
+  - [x] "Run scraper now" → `POST /api/admin/sources/run-scraper`
+- [x] `Admin` link in the nav bar, shown only to admins
+- [x] `Input` primitive (`shared/ui/Input.tsx`) — label, hint, error, `aria-invalid`/`aria-describedby`
+
+> Verified end to end through the UI: signed in as admin, added a brand-new
+> source (Rust Blog) with selectors the registry had never seen, ran Test Scrape
+> against a real article, saved, toggled inactive and back, then deleted it.
+
+### Remaining
+- [ ] Bookmarks page (`app/(protected)/bookmarks/page.tsx`) — grid with unsave action, wired to `GET /api/bookmarks` (paginated) and `DELETE /api/bookmarks/:id`. The endpoints and `GET /api/bookmarks/ids` are done and tested; only the page is missing
+- [ ] Toast notifications (`specs/admin-panel.md §4`) — the dashboard currently uses an inline status banner
+- [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`)
+- [ ] System Logs screen — **needs a backend first**: scrape results only go to stdout, nothing is persisted, so there is no API for this screen to read (`specs/admin-panel.md §6`)
+- [ ] Dark mode toggle — tracked in [Phase 5b](#phase-5b-dark--light-mode-toggle--todo)
+
+**What this gives you:** An administrator can sign in and manage scraping sources
+entirely through the UI — add, test, edit, activate and delete — with no code
+change or database access. Bookmarks remain API-only until the page lands.
 
 ---
 
@@ -159,7 +227,9 @@
 | 3 (Scraper) | ✅ Yes, with Phase 2 | Mongoose articles/sources collections ✓ |
 | 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
+| 5b (Dark / Light Mode) | ✅ Yes, with Phase 6 | Surfaces to audit exist (Phase 5) |
 | 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
+| 6a (Admin source management) | — done | Phase 4 admin endpoints ✓ |
 
-**Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6
+**Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6 (5b can land any time after 5)
 **Ways to speed up:** Implement phases 2 and 3 in parallel since neither depends on the other. Start frontend pages (phase 5) while phase 4 routes are still being built — mock API responses first, wire to real endpoints later.
