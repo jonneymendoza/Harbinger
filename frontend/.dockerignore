@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output (built BEFORE COPY . .)
+.next/
+out/
+dist/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.github/
+.gitignore
+
+# Logs & docs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Env (secrets) - pass via docker-compose args instead
+.env.local
+.env.production
+.env.*.local
+
+# Docker files themselves
+Dockerfile*
+docker-*
+
+# Testing / dev
+coverage/
+.nyc_output/

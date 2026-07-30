@@ -1,23 +1,24 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { Article } from '@/features/feed/types';
 import { fetchArticleById } from '@/features/feed/useNewsFeed';
 import { useAuth } from '@/features/auth/lib/AuthContext';
-import { api } from '@/shared/api/client';
-
-const BOOKMARK_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082/api';
+import { useBookmarks } from '@/features/bookmark-feature/hooks/useBookmarks';
 
 interface ArticlePageProps {
   params: Promise<{ id: string }>;
 }
 
 function ArticleContent({ id }: { id: string }) {
-  const { isAuthenticated, isGuest, triggerUpgradePrompt } = useAuth();
-  const [bookmarked, setBookmarked] = useState(false);
-  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const { isAuthenticated, isGuest } = useAuth();
+  // Read from the shared set rather than assuming false — opening an article
+  // already saved used to show it as unbookmarked.
+  const { isBookmarked, isPending, toggleBookmark } = useBookmarks();
+  const bookmarked = isBookmarked(id);
+  const bookmarkLoading = isPending(id);
 
   // Keyed on the article id and resolved through the feed feature's client, so
   // the API base URL is defined in exactly one place.
@@ -137,36 +138,11 @@ function ArticleContent({ id }: { id: string }) {
         {/* Bookmark toggle — Phase 4 implementation */}
         <div className="mt-8 flex items-center gap-4">
           <button
-            disabled={bookmarkLoading || !isAuthenticated || isGuest}
-            onClick={async () => {
-              if (isGuest || !isAuthenticated) { triggerUpgradePrompt(); return; }
-              setBookmarkLoading(true);
-              try {
-                // Per specs/api-endpoints.md §4: remove targets /bookmarks/:id,
-                // add posts { articleId } to /bookmarks.
-                const removing = bookmarked;
-                const url = removing
-                  ? `${BOOKMARK_API}/bookmarks/${article.id}`
-                  : `${BOOKMARK_API}/bookmarks`;
-                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                const token = localStorage.getItem('harbinger_token') || localStorage.getItem('harbinger_guest_token');
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                const res = await fetch(url, {
-                  method: removing ? 'DELETE' : 'POST',
-                  headers,
-                  body: removing ? undefined : JSON.stringify({ articleId: article.id }),
-                });
-                const data = await res.json();
-                
-                if (data.error?.code === 'GUEST_UPGRADE_REQUIRED') {
-                  triggerUpgradePrompt();
-                  return;
-                }
-                if (data.success) setBookmarked(!bookmarked);
-              } catch (e) { console.error('[Article] Bookmark failed:', e); }
-              finally { setBookmarkLoading(false); }
-            }}
+            disabled={bookmarkLoading}
+            // The context owns the request, the guest-upgrade prompt and the
+            // pending flag, so every surface stays in step.
+            onClick={() => void toggleBookmark(article.id)}
+            aria-pressed={bookmarked}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 transition-all disabled:cursor-not-allowed"
             style={{ color: bookmarked ? '#ef4444' : '' }}
             title={bookmarked ? 'Remove bookmark' : 'Bookmark this article'}                      >

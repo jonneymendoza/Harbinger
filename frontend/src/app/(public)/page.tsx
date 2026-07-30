@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/features/auth/lib/AuthContext';
 import { Button, Card } from '@/shared/ui';
 import Link from 'next/link';
@@ -8,19 +8,19 @@ import { useNewsFeed, useFeedSources, FEED_PAGE_SIZE } from '@/features/feed/use
 import { Pagination } from '@/features/feed/ui/Pagination';
 import { SourceFilter } from '@/features/feed/ui/SourceFilter';
 import { Article } from '@/features/feed/types';
-import { api } from '@/shared/api/client';
+import { useBookmarks } from '@/features/bookmark-feature/hooks/useBookmarks';
 
 export default function PublicPage() {
-  const { status, isAuthenticated, isGuest, setGuestToken, triggerUpgradePrompt } = useAuth();
+  const { status, isAuthenticated, isGuest, setGuestToken } = useAuth();
   const [page, setPage] = useState(1);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const { sources, totalArticles: allSourcesTotal } = useFeedSources();
   const { articles, isLoading, isError, currentPage, totalPages, totalArticles, pageSize } =
     useNewsFeed(page, FEED_PAGE_SIZE, sourceId);
 
-  /** Track per-article bookmark states locally for instant UI feedback */
-  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
-  const [loadingBookmark, setLoadingBookmark] = useState<string | null>(null);
+  // Shared across the app, so a bookmark made here still shows as bookmarked
+  // after visiting an article and coming back.
+  const { isBookmarked, isPending, toggleBookmark } = useBookmarks();
 
   /** Issue a guest JWT and transition the user to guest mode */
   const handleGuestLogin = async () => {
@@ -36,54 +36,8 @@ export default function PublicPage() {
     }
   };
 
-  /** Bookmark handler — POST/DELETE /api/bookmarks based on auth state */
-  const handleBookmark = useCallback(async (articleId: string) => {
-    // Guest upgrade path per guest-mode.md spec
-    if (isGuest || !isAuthenticated) {
-      triggerUpgradePrompt();
-      return;
-    }
-
-    setLoadingBookmark(articleId);
-    const isBookmarked = bookmarkedIds.has(articleId);
-
-    try {
-      let success = false;
-
-      if (isBookmarked) {
-        // Remove bookmark — DELETE /api/bookmarks/:articleId
-        const response = await api.auth.delete(`/bookmarks/${articleId}`);
-        if (response.error?.code === 'GUEST_UPGRADE_REQUIRED') {
-          triggerUpgradePrompt();
-          return;
-        }
-        success = response.success;
-      } else {
-        // Add bookmark — POST /api/bookmarks/:articleId
-        // POST /api/bookmarks takes the id in the body, per specs/api-endpoints.md §4
-        const response = await api.auth.post('/bookmarks', { articleId });
-        if (response.error?.code === 'GUEST_UPGRADE_REQUIRED') {
-          triggerUpgradePrompt();
-          return;
-        }
-        success = response.success;
-      }
-
-      if (success) {
-        setBookmarkedIds(prev => {
-          const next = new Set(prev);
-          if (isBookmarked) next.delete(articleId);
-          else next.add(articleId);
-          return next;
-        });
-      }
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      console.error('[Page] Bookmark action failed:', e.message || err);
-    } finally {
-      setLoadingBookmark(null);
-    }
-  }, [isGuest, isAuthenticated, bookmarkedIds, triggerUpgradePrompt]);
+  // Bookmarking now lives in BookmarksContext (toggleBookmark), which also
+  // owns the guest-upgrade prompt and the pending state.
 
   return (
     <main className="min-h-screen bg-white dark:bg-slate-950">
@@ -144,14 +98,33 @@ export default function PublicPage() {
             {articles.map((article: Article) => (
               <Link key={article.id} href={`/article/${article.id}`} passHref>
                 <Card hover className="group h-full flex flex-col relative">
-                  {/* Bookmark button — fills/empties based on local bookmarkedIds state */}
+                  {/* A bookmarked card stays marked; only the unbookmarked
+                      affordance is revealed on hover. Hiding it either way made
+                      saved articles indistinguishable at a glance. */}
                   <button
-                    disabled={loadingBookmark === article.id}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBookmark(article.id); }}
-                    className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 disabled:cursor-not-allowed"
-                    style={{ color: bookmarkedIds.has(article.id) ? '#ef4444' : '' }}
-                    title="Bookmark this article"                      >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    disabled={isPending(article.id)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); void toggleBookmark(article.id); }}
+                    aria-pressed={isBookmarked(article.id)}
+                    aria-label={isBookmarked(article.id) ? `Remove bookmark from ${article.title}` : `Bookmark ${article.title}`}
+                    title={isBookmarked(article.id) ? 'Remove bookmark' : 'Bookmark this article'}
+                    className={[
+                      'absolute top-3 right-3 z-10 p-1.5 rounded-full backdrop-blur-sm transition-all',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:opacity-100',
+                      'disabled:cursor-not-allowed',
+                      isBookmarked(article.id)
+                        ? 'opacity-100 bg-white dark:bg-slate-900 text-red-500 shadow-sm'
+                        : 'opacity-0 group-hover:opacity-100 bg-white/80 dark:bg-slate-900/80 text-slate-600 dark:text-slate-300',
+                    ].join(' ')}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill={isBookmarked(article.id) ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    >
                       <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
                     </svg>
                   </button>
