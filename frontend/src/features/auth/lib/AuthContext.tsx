@@ -16,13 +16,18 @@ interface User {
  */
 type AuthStatus = 'IS_AUTHENTICATED' | 'IS_GUEST' | 'IS_ANONYMOUS';
 
+type Role = 'USER' | 'ADMIN' | 'GUEST';
+
 interface AuthContextType {
   token: string | null;
   user: User | null;
   status: AuthStatus;
+  role: Role | null;
   isAuthenticated: boolean;
   isGuest: boolean;
-  login: (token: string, user: User, role?: 'USER' | 'ADMIN' | 'GUEST') => void;
+  /** Gates the admin dashboard. Null role means we do not know yet. */
+  isAdmin: boolean;
+  login: (token: string, user: User, role?: Role) => void;
   setGuestToken: (token: string) => void;
   logout: () => void;
   /** Call when bookmark action fails for guests — shows upgrade prompt */
@@ -37,14 +42,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>('IS_ANONYMOUS');
+  const [role, setRole] = useState<Role | null>(null);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
-  const login = useCallback((newToken: string, newUser: User, role?: 'USER' | 'ADMIN' | 'GUEST') => {
+  const login = useCallback((newToken: string, newUser: User, newRole?: Role) => {
     setToken(newToken);
     setUser(newUser);
-    setStatus(role === 'GUEST' ? 'IS_GUEST' : 'IS_AUTHENTICATED');
+    setRole(newRole ?? 'USER');
+    setStatus(newRole === 'GUEST' ? 'IS_GUEST' : 'IS_AUTHENTICATED');
     localStorage.setItem('harbinger_token', newToken);
     localStorage.setItem('harbinger_user', JSON.stringify(newUser));
+    // Persisted so a refresh does not lose admin access. Authorisation is still
+    // enforced server-side on every request — this only drives what the UI offers.
+    localStorage.setItem('harbinger_role', newRole ?? 'USER');
   }, []);
 
   useEffect(() => {
@@ -89,12 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedToken) {
       try {
         const userDataStr = localStorage.getItem('harbinger_user');
+        const storedRole = localStorage.getItem('harbinger_role') as Role | null;
         setToken(storedToken);
         setUser(userDataStr ? JSON.parse(userDataStr) : null);
-        setStatus('IS_AUTHENTICATED');
+        setRole(storedRole ?? 'USER');
+        setStatus(storedRole === 'GUEST' ? 'IS_GUEST' : 'IS_AUTHENTICATED');
       } catch {
         localStorage.removeItem('harbinger_token');
         localStorage.removeItem('harbinger_user');
+        localStorage.removeItem('harbinger_role');
         localStorage.removeItem('harbinger_guest_token');
       }
     }
@@ -107,19 +120,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setGuestToken = useCallback((guestToken: string) => {
     setToken(guestToken);
     setUser({ id: 'guest' });
+    setRole('GUEST');
     setStatus('IS_GUEST');
     // Guest tokens are stored in a separate key so logout only clears guest when explicit
     localStorage.setItem('harbinger_guest_token', guestToken);
     // Also store in main key for consistency with public API flow
     localStorage.setItem('harbinger_token', guestToken);
+    localStorage.setItem('harbinger_role', 'GUEST');
   }, []);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
+    setRole(null);
     setStatus('IS_ANONYMOUS');
     localStorage.removeItem('harbinger_token');
     localStorage.removeItem('harbinger_user');
+    localStorage.removeItem('harbinger_role');
     localStorage.removeItem('harbinger_guest_token');
   }, []);
 
@@ -132,8 +149,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token, 
         user, 
         status, 
+        role,
         isAuthenticated: status === 'IS_AUTHENTICATED',
         isGuest: status === 'IS_GUEST',
+        isAdmin: status === 'IS_AUTHENTICATED' && role === 'ADMIN',
         login, 
         setGuestToken,
         logout,

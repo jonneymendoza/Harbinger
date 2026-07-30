@@ -133,7 +133,7 @@
   - [x] `(public)/page.tsx` — Home/Feed page
   - [x] `article/[id]/page.tsx` — Article detail view
   - [~] Layout structure with nav bar (`features/ui/Navbar.tsx`) — logo and login/profile present; **dark mode toggle missing** (see [Phase 5b](#phase-5b-dark--light-mode-toggle--todo))
-- [~] Shared UI primitives (`shared/ui/`) — `Button` and `Card` done; **`Input` not built yet** (first needed by the Phase 6 admin source form)
+- [x] Shared UI primitives (`shared/ui/`) — `Button`, `Card`, `Input`
 - [~] Data fetching:
   - [ ] Server Components for initial page data loads (per `PRD.md §6.B RSC rules`) — **not done**: both pages are `"use client"` and fetch via SWR, so the first paint is a skeleton rather than server-rendered content. Worth revisiting for SEO on the article page
   - [x] SWR hooks (`features/feed/useNewsFeed.ts`) for cached navigation, with `keepPreviousData` so paging does not flash back to skeletons
@@ -182,22 +182,38 @@ component plus a visual audit.
 
 ---
 
-## Phase 6: Protected + Admin UI [🔴 TODO]
+## Phase 6: Protected + Admin UI [🟡 IN PROGRESS]
 
-- [ ] **Admin sign-in route** — blocks everything else here. `ADMIN_USER`/`ADMIN_PASS` seed an admin account on boot, but auth is OAuth-only, so there is no way to obtain an ADMIN token through the app; the Phase 4 admin endpoints are only reachable by minting a JWT by hand. Needs a credential login (`POST /api/auth/login`) that verifies `passwordHash` and issues an ADMIN token
-- [ ] `/auth/login` page — social login buttons complete (redirects → popup → receive JWT → store in localStorage)
-- [ ] Bookmarks page (`protected/bookmarks/page.tsx`) — filtered grid with unsave action, wired to `GET /api/bookmarks` (paginated) and `DELETE /api/bookmarks/:id`
-- [ ] Auth state management (`features/auth-feature/lib/authContext.tsx`) — stores token + user role globally
-- [ ] `AdminGuard` HOC / route wrapper (per `specs/admin-panel.md:8`) — redirects non-admins to `/auth/login`
-- [ ] Admin dashboard (`admin/page.tsx`):
-  - [ ] Sources table (name, URL, active status, date added)
-  - [ ] Source editor form with CSS selector inputs + validation
-  - [ ] "Test Scrape" button → triggers `POST /api/admin/sources/test` → shows preview of scraped title and image
-  - [ ] Delete source confirmation UI
-- [ ] Admin source form fields for `adapter`, `displayName`, and `articleLimit` (see `GET /api/admin/sources/adapters` for the adapter list and which ones need selectors)
+### Admin source management [✅ DONE]
+- [x] **Admin sign-in** — `POST /api/auth/login` verifies `passwordHash` against `provider: 'local'` accounts and issues a role-bearing token. Unblocks the whole phase: `ADMIN_USER`/`ADMIN_PASS` seed an admin, but OAuth can never reach it, so the Phase 4 admin endpoints previously needed a hand-minted JWT. Failures are indistinguishable between unknown account and wrong password, and the route has its own rate limit (10 per 15 min)
+- [x] Credential form on the login page (`features/auth/ui/CredentialLoginForm.tsx`) — collapsed by default so social stays primary; routes admins to `/admin` on success
+- [x] Auth state tracks `role`, exposing `isAdmin` (`features/auth/lib/AuthContext.tsx`)
+- [x] `AdminGuard` route wrapper (`features/admin/ui/AdminGuard.tsx`) — distinguishes "sign in required" from "admin only", and waits for the localStorage restore so a signed-in admin never sees a false denial
+- [x] Admin dashboard (`app/(admin)/admin/page.tsx`):
+  - [x] Sources table — name, display name, URL, adapter, limit, status, date added
+  - [x] Source editor form with validation (URL format, limit range, selectors required only when the adapter needs them)
+  - [x] Adapter picker driven by `GET /api/admin/sources/adapters`; the CSS selector block appears only for `requiresSelectors` adapters
+  - [x] `displayName` and `articleLimit` fields
+  - [x] "Test Scrape" → `POST /api/admin/sources/test` → preview of title, hero image, summary, character count
+  - [x] Toggle active/inactive, and delete behind a confirm step
+  - [x] "Run scraper now" → `POST /api/admin/sources/run-scraper`
+- [x] `Admin` link in the nav bar, shown only to admins
+- [x] `Input` primitive (`shared/ui/Input.tsx`) — label, hint, error, `aria-invalid`/`aria-describedby`
+
+> Verified end to end through the UI: signed in as admin, added a brand-new
+> source (Rust Blog) with selectors the registry had never seen, ran Test Scrape
+> against a real article, saved, toggled inactive and back, then deleted it.
+
+### Remaining
+- [ ] Bookmarks page (`app/(protected)/bookmarks/page.tsx`) — grid with unsave action, wired to `GET /api/bookmarks` (paginated) and `DELETE /api/bookmarks/:id`. The endpoints and `GET /api/bookmarks/ids` are done and tested; only the page is missing
+- [ ] Toast notifications (`specs/admin-panel.md §4`) — the dashboard currently uses an inline status banner
+- [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`)
+- [ ] System Logs screen — **needs a backend first**: scrape results only go to stdout, nothing is persisted, so there is no API for this screen to read (`specs/admin-panel.md §6`)
 - [ ] Dark mode toggle — tracked in [Phase 5b](#phase-5b-dark--light-mode-toggle--todo)
 
-**What this gives you:** Complete application. Authenticate → browse feed → bookmark articles → manage scraping sources as admin. All specs fully implemented and tested.
+**What this gives you:** An administrator can sign in and manage scraping sources
+entirely through the UI — add, test, edit, activate and delete — with no code
+change or database access. Bookmarks remain API-only until the page lands.
 
 ---
 
@@ -213,6 +229,7 @@ component plus a visual audit.
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
 | 5b (Dark / Light Mode) | ✅ Yes, with Phase 6 | Surfaces to audit exist (Phase 5) |
 | 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
+| 6a (Admin source management) | — done | Phase 4 admin endpoints ✓ |
 
 **Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6 (5b can land any time after 5)
 **Ways to speed up:** Implement phases 2 and 3 in parallel since neither depends on the other. Start frontend pages (phase 5) while phase 4 routes are still being built — mock API responses first, wire to real endpoints later.

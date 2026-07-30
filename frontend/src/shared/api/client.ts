@@ -14,8 +14,10 @@ interface ApiResponse<T> {
 /** Get auth headers from localStorage */
 function getAuthHeader(): string | null {
   if (typeof window === 'undefined') return null;
-  // Prefer guest token for public-allowed routes to maintain session continuity
-  const token = localStorage.getItem('harbinger_guest_token') || localStorage.getItem('harbinger_token');
+  // Prefer the real session token. Preferring the guest token meant a user who
+  // browsed as a guest before signing in kept sending GUEST credentials, so
+  // every bookmark and admin call came back 403.
+  const token = localStorage.getItem('harbinger_token') || localStorage.getItem('harbinger_guest_token');
   return token ? `Bearer ${token}` : null;
 }
 
@@ -43,7 +45,13 @@ async function parseResponse<T>(response: Response, isPublic = false): Promise<A
   }
 
   if (response.ok) {
-    return { success: true, data, error: null };
+    // The API already wraps every payload as { success, data, error }. Passing
+    // that envelope straight through as `data` double-wrapped it, so callers had
+    // to reach for `res.data.data` — and anything treating `res.data` as its
+    // declared type (an array, say) crashed. Unwrap it here, once.
+    const isEnvelope =
+      data !== null && typeof data === 'object' && 'success' in data && 'data' in data;
+    return { success: true, data: isEnvelope ? data.data : data, error: null };
   }
 
   // -- Unauthorized handling by endpoint category --
@@ -70,12 +78,10 @@ async function parseResponse<T>(response: Response, isPublic = false): Promise<A
     return { success: false, data: null, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } };
   }
 
-  // Forbidden (403) — guest trying to access a write endpoint
+  // Forbidden (403) — e.g. a guest attempting a write, or a non-admin hitting
+  // an admin route. Surface the API's own error code so callers can branch on
+  // GUEST_UPGRADE_REQUIRED; there is no hook to call from here.
   if (response.status === 403) {
-    if (typeof window !== 'undefined') {
-      const auth = await import('@/features/auth/lib/AuthContext').then(m => m.useAuth?.());
-      // We can't use hooks outside component; just return the error and let callers handle it
-    }
     return { success: false, data: null, error: data?.error || { message: 'Forbidden', code: 'FORBIDDEN' } };
   }
 
@@ -110,6 +116,24 @@ export const api = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: header || '' },
         body: JSON.stringify(body),
+      }).then((r) => parseResponse<T>(r, false));
+    },
+
+    put<T, B = unknown>(path: string, body?: B): Promise<ApiResponse<T>> {
+      const header = getAuthHeader();
+      return fetch(`${API_URL}${path}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: header || '' },
+        body: JSON.stringify(body),
+      }).then((r) => parseResponse<T>(r, false));
+    },
+
+    patch<T, B = unknown>(path: string, body?: B): Promise<ApiResponse<T>> {
+      const header = getAuthHeader();
+      return fetch(`${API_URL}${path}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: header || '' },
+        body: JSON.stringify(body ?? {}),
       }).then((r) => parseResponse<T>(r, false));
     },
 

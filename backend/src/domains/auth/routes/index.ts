@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import initRoute from './init.route';
+import loginRoute from './login.route';
 import logoutRoute from './logout.route';
 import guestRoute from './guest.route';
 import { googleCallbackHandler, appleCallbackHandler, facebookCallbackHandler } from './callback.route';
 
 const router = Router();
 
-// Register specific routes BEFORE the catch-all '/' route so they are not consumed by it
+// Register specific routes BEFORE the catch-all '/' route so they are not consumed by it.
+// initRoute owns `POST /:provider`, which would otherwise swallow /login as an
+// unsupported OAuth provider.
 router.use('/guest', guestRoute);
+router.use('/login', loginRoute);
 router.use('/logout', logoutRoute);
 
 // Bookmarks live at /api/bookmarks (see app.ts), not under /api/auth.
