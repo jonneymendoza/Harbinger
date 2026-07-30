@@ -60,7 +60,8 @@ export default function PublicPage() {
         success = response.success;
       } else {
         // Add bookmark — POST /api/bookmarks/:articleId
-        const response = await api.auth.post(`/bookmarks/${articleId}`, {});
+        // POST /api/bookmarks takes the id in the body, per specs/api-endpoints.md §4
+        const response = await api.auth.post('/bookmarks', { articleId });
         if (response.error?.code === 'GUEST_UPGRADE_REQUIRED') {
           triggerUpgradePrompt();
           return;

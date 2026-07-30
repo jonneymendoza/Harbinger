@@ -2,7 +2,6 @@ import { Router } from 'express';
 import initRoute from './init.route';
 import logoutRoute from './logout.route';
 import guestRoute from './guest.route';
-import bookmarkRoute from './bookmark.route';
 import { googleCallbackHandler, appleCallbackHandler, facebookCallbackHandler } from './callback.route';
 
 const router = Router();
@@ -11,8 +10,7 @@ const router = Router();
 router.use('/guest', guestRoute);
 router.use('/logout', logoutRoute);
 
-// Bookmark routes (authenticated)
-router.use('/bookmarks', bookmarkRoute);
+// Bookmarks live at /api/bookmarks (see app.ts), not under /api/auth.
 
 // Register individual OAuth callback routes at the correct paths
 router.get('/google/callback', googleCallbackHandler);
@@ -23,5 +21,4 @@ router.get('/facebook/callback', facebookCallbackHandler);
 router.use('/', initRoute);
 
 export { default as logoutRoute } from './logout.route';
-export { default as bookmarkRoute } from './bookmark.route';
 export default router;

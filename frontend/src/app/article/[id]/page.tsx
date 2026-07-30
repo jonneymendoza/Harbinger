@@ -142,16 +142,20 @@ function ArticleContent({ id }: { id: string }) {
               if (isGuest || !isAuthenticated) { triggerUpgradePrompt(); return; }
               setBookmarkLoading(true);
               try {
-                const actionType = bookmarked ? 'delete' : 'post';
-                const url = `${BOOKMARK_API}/bookmarks/${article.id}`;
+                // Per specs/api-endpoints.md §4: remove targets /bookmarks/:id,
+                // add posts { articleId } to /bookmarks.
+                const removing = bookmarked;
+                const url = removing
+                  ? `${BOOKMARK_API}/bookmarks/${article.id}`
+                  : `${BOOKMARK_API}/bookmarks`;
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 const token = localStorage.getItem('harbinger_token') || localStorage.getItem('harbinger_guest_token');
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                
+
                 const res = await fetch(url, {
-                  method: actionType === 'delete' ? 'DELETE' : 'POST',
+                  method: removing ? 'DELETE' : 'POST',
                   headers,
-                  body: actionType === 'post' ? JSON.stringify({}) : undefined,
+                  body: removing ? undefined : JSON.stringify({ articleId: article.id }),
                 });
                 const data = await res.json();
                 

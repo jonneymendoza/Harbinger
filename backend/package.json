@@ -42,6 +42,8 @@
     "@types/passport-apple": "^2.0.3",
     "@types/passport-facebook": "^3.0.3",
     "@types/passport-google-oauth20": "^2.0.16",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "tsc-alias": "^1.8.10",

@@ -88,7 +88,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           thumbnailImage: a.thumbnailImage,
           summary: a.summary,
           publishedAt: a.publishedAt,
-          sourceName: a.sourceId?.name || 'Unknown',
+          // Fall back to the denormalised copy so a deleted source does not
+          // turn every one of its articles into "Unknown" — matching /:id.
+          sourceName: a.sourceId?.name || a.sourceName || 'Unknown',
         })),
         totalArticles: total,
         currentPage: page,
