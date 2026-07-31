@@ -83,9 +83,20 @@ export interface DiscoveredFeed {
   source: 'declared' | 'common-path' | 'provided';
 }
 
+/** A sitemap found by probing. */
+export interface DiscoveredSitemap {
+  url: string;
+  entryCount: number;
+  isIndex: boolean;
+  source: 'robots' | 'common-path' | 'provided';
+}
+
+/** Everything machine-readable a site offers, so selectors are a last resort. */
 export interface FeedDiscoveryResult {
   feeds: DiscoveredFeed[];
-  recommendedAdapter: string;
+  sitemaps: DiscoveredSitemap[];
+  recommendedAdapter: 'rss' | 'sitemap' | 'generic';
+  reason: string;
 }
 
 export type ScrapeTrigger = 'boot' | 'cron' | 'manual';

@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { Button, Input } from '@/shared/ui';
-import { Adapter, DiscoveredFeed, SourceFormValues, TestScrapeResult } from '../types';
+import {
+  Adapter,
+  DiscoveredFeed,
+  DiscoveredSitemap,
+  SourceFormValues,
+  TestScrapeResult,
+} from '../types';
 import { discoverFeeds, findAdapter, testScrape } from '../api/useSources';
 
 interface SourceEditorProps {
@@ -50,11 +56,12 @@ export function SourceEditor({
   const [testError, setTestError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestScrapeResult | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [feedLookup, setFeedLookup] = useState<{
+  const [probe, setProbe] = useState<{
     state: 'idle' | 'searching' | 'done' | 'error';
     feeds: DiscoveredFeed[];
+    sitemaps: DiscoveredSitemap[];
     message?: string;
-  }>({ state: 'idle', feeds: [] });
+  }>({ state: 'idle', feeds: [], sitemaps: [] });
   const [touched, setTouched] = useState(false);
 
   const adapter = findAdapter(adapters, values.adapter);
@@ -100,37 +107,36 @@ export function SourceEditor({
     }
   };
 
-  const handleFindFeeds = async () => {
+  const handleProbe = async () => {
     const site = values.baseUrl.trim();
     if (!isValidUrl(site)) {
-      setFeedLookup({ state: 'error', feeds: [], message: 'Enter a valid http(s) URL first.' });
+      setProbe({ state: 'error', feeds: [], sitemaps: [], message: 'Enter a valid http(s) URL first.' });
       return;
     }
 
-    setFeedLookup({ state: 'searching', feeds: [] });
+    setProbe({ state: 'searching', feeds: [], sitemaps: [] });
     try {
-      const { feeds } = await discoverFeeds(site);
-      setFeedLookup({
+      const result = await discoverFeeds(site);
+      setProbe({
         state: 'done',
-        feeds,
-        message:
-          feeds.length === 0
-            ? 'No feed found. Use the generic adapter with CSS selectors instead.'
-            : undefined,
+        feeds: result.feeds,
+        sitemaps: result.sitemaps,
+        message: result.reason,
       });
     } catch (err) {
-      setFeedLookup({
+      setProbe({
         state: 'error',
         feeds: [],
-        message: err instanceof Error ? err.message : 'Feed lookup failed',
+        sitemaps: [],
+        message: err instanceof Error ? err.message : 'Lookup failed',
       });
     }
   };
 
-  /** Switching to a feed replaces the Base URL, since that is what RSS reads. */
-  const useFeed = (feed: DiscoveredFeed) => {
-    onChange({ ...values, baseUrl: feed.url, adapter: 'rss' });
-    setFeedLookup({ state: 'idle', feeds: [] });
+  /** Choosing a route replaces the Base URL, since that is what the adapter reads. */
+  const useRoute = (url: string, adapter: 'rss' | 'sitemap') => {
+    onChange({ ...values, baseUrl: url, adapter });
+    setProbe({ state: 'idle', feeds: [], sitemaps: [] });
   };
 
   const handleTest = async () => {
@@ -196,7 +202,9 @@ export function SourceEditor({
               hint={
                 values.adapter === 'rss'
                   ? 'The RSS or Atom feed to read'
-                  : 'The listing page the scraper starts from'
+                  : values.adapter === 'sitemap'
+                    ? 'The sitemap.xml to read article URLs from'
+                    : 'The listing page the scraper starts from'
               }
               placeholder="https://example.com/news"
             />
@@ -204,53 +212,90 @@ export function SourceEditor({
           <Button
             type="button"
             variant="secondary"
-            onClick={handleFindFeeds}
-            disabled={feedLookup.state === 'searching'}
+            onClick={handleProbe}
+            disabled={probe.state === 'searching'}
             className="sm:mt-7"
           >
-            {feedLookup.state === 'searching' ? 'Searching…' : 'Find RSS feed'}
+            {probe.state === 'searching' ? 'Checking…' : 'Check for feed / sitemap'}
           </Button>
         </div>
 
-        {/* Feeds are offered, never applied automatically: most sites publish
+        {/* Routes are offered, never applied automatically: most sites publish
             several, and choosing silently would hide why a source carries what
             it does. */}
-        {feedLookup.feeds.length > 0 && (
-          <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
-            <p className="mb-2 text-xs font-medium text-indigo-900 dark:text-indigo-200">
-              {feedLookup.feeds.length === 1 ? 'Found a feed' : `Found ${feedLookup.feeds.length} feeds`} — using
-              one switches this source to the RSS adapter, so no CSS selectors are needed.
-            </p>
-            <ul className="space-y-1.5">
-              {feedLookup.feeds.map((feed) => (
-                <li key={feed.url} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-indigo-900 dark:text-indigo-100">
-                      {feed.title}
-                    </span>
-                    <span className="block truncate text-xs text-indigo-800/80 dark:text-indigo-300/80">
-                      {feed.url} · {feed.itemCount} items
-                      {feed.source === 'common-path' ? ' · found by probing' : ''}
-                    </span>
-                  </span>
-                  <Button type="button" className="px-2 py-1 text-xs" onClick={() => useFeed(feed)}>
-                    Use this feed
-                  </Button>
-                </li>
-              ))}
-            </ul>
+        {(probe.feeds.length > 0 || probe.sitemaps.length > 0) && (
+          <div className="mt-2 space-y-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+            {probe.feeds.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-900 dark:text-indigo-200">
+                  Feeds — best option
+                </p>
+                <ul className="space-y-1.5">
+                  {probe.feeds.map((feed) => (
+                    <li key={feed.url} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-indigo-900 dark:text-indigo-100">
+                          {feed.title}
+                        </span>
+                        <span className="block truncate text-xs text-indigo-800/80 dark:text-indigo-300/80">
+                          {feed.url} · {feed.itemCount} items
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => useRoute(feed.url, 'rss')}
+                      >
+                        Use feed
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {probe.sitemaps.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-900 dark:text-indigo-200">
+                  Sitemaps — reliable discovery, still loads each page
+                </p>
+                <ul className="space-y-1.5">
+                  {probe.sitemaps.map((sm) => (
+                    <li key={sm.url} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-indigo-900 dark:text-indigo-100">
+                          {sm.url}
+                        </span>
+                        <span className="block truncate text-xs text-indigo-800/80 dark:text-indigo-300/80">
+                          {sm.entryCount} {sm.isIndex ? 'child sitemaps' : 'URLs'}
+                          {sm.source === 'robots' ? ' · from robots.txt' : ''}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => useRoute(sm.url, 'sitemap')}
+                      >
+                        Use sitemap
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
-        {feedLookup.message && (
+        {probe.message && (
           <p
             className={`mt-2 text-xs ${
-              feedLookup.state === 'error'
+              probe.state === 'error'
                 ? 'text-red-700 dark:text-red-400'
                 : 'text-slate-600 dark:text-slate-400'
             }`}
           >
-            {feedLookup.message}
+            {probe.message}
           </p>
         )}
       </div>

@@ -4,6 +4,7 @@ import { GenericAdapter } from './genericAdapter';
 import { ArsenalAdapter } from './arsenalAdapter';
 import { RsiCommLinkAdapter } from './rsiCommLinkAdapter';
 import { RssAdapter } from './rssAdapter';
+import { SitemapAdapter } from './sitemapAdapter';
 
 /**
  * Registry of scraping adapters.
@@ -15,10 +16,14 @@ import { RssAdapter } from './rssAdapter';
  */
 // `rss` before `generic`: it needs no selectors and suits most news sites,
 // so it is the better default suggestion when both could apply.
+// Ordered by how durable each strategy is: a feed carries structured content
+// and survives redesigns, a sitemap gives reliable discovery, selectors break
+// whenever markup changes. The picker shows them in this order.
 const ADAPTERS: ISourceAdapter[] = [
   new ArsenalAdapter(),
   new RsiCommLinkAdapter(),
   new RssAdapter(),
+  new SitemapAdapter(),
   new GenericAdapter(),
 ];
 
@@ -65,4 +70,4 @@ export function suggestAdapterForUrl(url: string): AdapterDescriptor {
   return { ...(match ?? byKey.get(DEFAULT_ADAPTER_KEY)!).descriptor };
 }
 
-export { GenericAdapter, ArsenalAdapter, RsiCommLinkAdapter, RssAdapter };
+export { GenericAdapter, ArsenalAdapter, RsiCommLinkAdapter, RssAdapter, SitemapAdapter };

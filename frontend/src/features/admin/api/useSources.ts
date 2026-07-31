@@ -144,7 +144,7 @@ export async function testScrape(
 }
 
 /**
- * Probes a site for RSS/Atom feeds. Results are offered for the operator to
+ * Probes a site for feeds and sitemaps. Results are offered for the operator to
  * choose from rather than applied automatically — most sites publish several,
  * and picking one silently would hide why a source carries what it does.
  */

@@ -12,7 +12,7 @@ import {
 } from '@infrastructure/scraper/adapters';
 import { runScrapeNow } from '@cron/scraperCron';
 import { ScrapeRunRepository } from '@infrastructure/repositories/scrapeRunRepository';
-import { discoverFeeds } from '@infrastructure/scraper/rss/feedDiscovery';
+import { probeSite } from '@infrastructure/scraper/siteProbe';
 
 const router = Router();
 
@@ -39,9 +39,9 @@ router.get('/adapters', (req: Request, res: Response) => {
 /**
  * GET /api/admin/sources/discover-feeds?url=
  *
- * Probes a site for RSS/Atom feeds and reports what it found, so the operator
- * picks one rather than hunting for the path — or discovers there is none and
- * falls back to CSS selectors.
+ * Reports every machine-readable route a site offers — feeds and sitemaps — so
+ * the operator picks one rather than defaulting to CSS selectors, which are the
+ * least durable option.
  *
  * Deliberately a suggestion, not an automatic choice: most sites publish
  * several feeds, and silently picking one would leave a source quietly carrying
@@ -63,16 +63,9 @@ router.get('/discover-feeds', async (req: Request, res: Response, next: NextFunc
   try {
     // Plain HTTP throughout: feeds are static XML, and a site that blocks the
     // rendered page often still serves its feed.
-    const feeds = await discoverFeeds(url, (target) => scraper.fetchHtml(target));
+    const result = await probeSite(url, (target) => scraper.fetchHtml(target));
 
-    res.json({
-      success: true,
-      data: {
-        feeds,
-        recommendedAdapter: feeds.length > 0 ? 'rss' : 'generic',
-      },
-      error: null,
-    });
+    res.json({ success: true, data: result, error: null });
   } catch (error) {
     next(error);
   } finally {
