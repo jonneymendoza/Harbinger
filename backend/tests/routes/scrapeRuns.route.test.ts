@@ -19,7 +19,11 @@ vi.mock('@infrastructure/repositories/scrapeRunRepository', () => ({
   },
 }));
 // The admin router pulls these in; stub them so the module loads without Mongo.
-vi.mock('@cron/scraperCron', () => ({ runScrapeNow: vi.fn() }));
+vi.mock('@cron/scraperCron', () => ({
+  runScrapeNow: vi.fn(),
+  runSourceScrapeNow: vi.fn(),
+  ScrapeBusyError: class ScrapeBusyError extends Error {},
+}));
 vi.mock('@infrastructure/scraper/playwrightScraper', () => ({
   PlaywrightScraper: vi.fn(() => ({ scrapeArticle: vi.fn(), destroy: vi.fn() })),
 }));

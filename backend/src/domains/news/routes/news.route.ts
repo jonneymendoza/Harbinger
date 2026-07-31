@@ -74,7 +74,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         .sort({ publishedAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('sourceId', 'name')
+        .populate('sourceId', 'name displayName')
         .lean(),
       ArticleModel.countDocuments(filter),
     ]);
@@ -88,9 +88,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           thumbnailImage: a.thumbnailImage,
           summary: a.summary,
           publishedAt: a.publishedAt,
-          // Fall back to the denormalised copy so a deleted source does not
-          // turn every one of its articles into "Unknown" — matching /:id.
-          sourceName: a.sourceId?.name || a.sourceName || 'Unknown',
+          // displayName first: it is what the filter pills use, and a card
+          // labelled "MMO RPG news" under a pill reading "MMO News" looks like
+          // a different source. Fall back to the denormalised copy so a deleted
+          // source does not turn every one of its articles into "Unknown".
+          sourceName: a.sourceId?.displayName || a.sourceId?.name || a.sourceName || 'Unknown',
         })),
         totalArticles: total,
         currentPage: page,
@@ -117,7 +119,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const article = await ArticleModel.findById(id)
-      .populate('sourceId', 'name baseUrl')
+      .populate('sourceId', 'name displayName baseUrl')
       .lean();
 
     if (!article) {
@@ -136,7 +138,11 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         // summary is the frontend's fallback when fullContent is empty (media-only
         // posts), and sourceName labels the "view original" link — both must be sent.
         summary: article.summary,
-        sourceName: (article.sourceId as any)?.name || article.sourceName || 'Unknown',
+        sourceName:
+          (article.sourceId as any)?.displayName ||
+          (article.sourceId as any)?.name ||
+          article.sourceName ||
+          'Unknown',
         sourceUrl: article.sourceUrl,
         category: article.category,
         publishedAt: article.publishedAt,

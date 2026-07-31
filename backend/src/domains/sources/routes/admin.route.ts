@@ -10,7 +10,8 @@ import {
   listAdapters,
   suggestAdapterForUrl,
 } from '@infrastructure/scraper/adapters';
-import { runScrapeNow } from '@cron/scraperCron';
+import { runScrapeNow, runSourceScrapeNow, ScrapeBusyError } from '@cron/scraperCron';
+import { SourceRepository } from '@infrastructure/repositories/sourceRepository';
 import { ScrapeRunRepository } from '@infrastructure/repositories/scrapeRunRepository';
 import { probeSite } from '@infrastructure/scraper/siteProbe';
 
@@ -465,6 +466,49 @@ router.post('/run-scraper', async (_req: Request, res: Response, next: NextFunct
       error: null,
     });
   } catch (error) {
+    if (error instanceof ScrapeBusyError) {
+      return next(AppError.conflict(error.message));
+    }
+    next(error);
+  }
+});
+
+/**
+ * POST /api/admin/sources/:id/scrape
+ * Scrape one source immediately, without waiting for a run over every source.
+ *
+ * This is what the "Scrape now" button calls, and what runs automatically once
+ * a source has been added — a full run takes minutes and spends almost all of
+ * it on sources that have nothing new.
+ */
+router.post('/:id/scrape', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(AppError.badRequest('Invalid source ID'));
+    }
+
+    // Checked up front so a missing source is a 404 rather than an empty run
+    // recorded in the scrape log.
+    const source = await new SourceRepository().findById(id);
+    if (!source) {
+      return next(AppError.notFound('Source not found'));
+    }
+
+    const result = await runSourceScrapeNow(id);
+    if (!result) {
+      return next(AppError.notFound('Source not found'));
+    }
+
+    res.json({
+      success: true,
+      data: result,
+      error: null,
+    });
+  } catch (error) {
+    if (error instanceof ScrapeBusyError) {
+      return next(AppError.conflict(error.message));
+    }
     next(error);
   }
 });

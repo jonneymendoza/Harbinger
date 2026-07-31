@@ -99,10 +99,12 @@ export interface FeedDiscoveryResult {
   reason: string;
 }
 
-export type ScrapeTrigger = 'boot' | 'cron' | 'manual';
+/** `source` = an admin scraped one source on its own, rather than the whole set. */
+export type ScrapeTrigger = 'boot' | 'cron' | 'manual' | 'source';
 /** partial = the run completed but at least one source reported a problem. */
 export type ScrapeStatus = 'success' | 'partial' | 'failed';
 
+/** One source's outcome — returned on its own by the per-source scrape endpoint. */
 export interface ScrapeRunSourceResult {
   sourceId: string | null;
   sourceName: string;

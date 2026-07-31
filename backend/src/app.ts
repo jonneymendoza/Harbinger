@@ -17,6 +17,7 @@ import { createBookmarkRouter } from '@domains/bookmarks/routes/bookmark.route';
 import { BookmarkRepository } from '@infrastructure/repositories/bookmarkRepository';
 import { authMiddleware, checkRole } from '@infrastructure/middleware/authMiddleware';
 import { errorHandler, notFoundHandler } from '@shared/errors/errorHandler';
+import { createDocsRouter } from '@shared/docs/openapi';
 import { initScraperCron, scheduleInitialScrape } from '@cron/scraperCron';
 
 const app = express();
@@ -36,6 +37,34 @@ export async function bootstrap() {
     origin: allowedOrigins,
     credentials: true,
   }));
+
+  // Mounted before the rate limiter: Swagger UI pulls several assets per page
+  // load, and those should not eat an operator's API quota. Set
+  // SWAGGER_UI=false to withhold the docs entirely.
+  if (process.env.SWAGGER_UI !== 'false') {
+    const docsRouter = createDocsRouter();
+    if (docsRouter) {
+      app.use(
+        '/api/docs',
+        // Swagger UI ships inline scripts and styles, which the default CSP
+        // blocks. Relaxed for this path only — the global policy still covers
+        // every route that handles data.
+        helmet({
+          contentSecurityPolicy: {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:'],
+              connectSrc: ["'self'"],
+            },
+          },
+        }),
+        docsRouter,
+      );
+      console.log('[Docs] Swagger UI available at /api/docs');
+    }
+  }
 
   const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
   app.use('/api/', limiter);

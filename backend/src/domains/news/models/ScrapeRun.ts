@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type ScrapeTrigger = 'boot' | 'cron' | 'manual';
+/** `source` = an admin scraped one source on its own, rather than the whole set. */
+export type ScrapeTrigger = 'boot' | 'cron' | 'manual' | 'source';
 /** partial = the run completed but at least one source reported a problem. */
 export type ScrapeStatus = 'success' | 'partial' | 'failed';
 
@@ -47,7 +48,7 @@ const ScrapeSourceResultSchema = new Schema<IScrapeSourceResult>(
  * is exactly what happened with Arsenal.
  */
 const ScrapeRunSchema = new Schema<IScrapeRun>({
-  trigger: { type: String, required: true, enum: ['boot', 'cron', 'manual'] },
+  trigger: { type: String, required: true, enum: ['boot', 'cron', 'manual', 'source'] },
   status: { type: String, required: true, enum: ['success', 'partial', 'failed'] },
   startedAt: { type: Date, required: true },
   finishedAt: { type: Date, required: true },

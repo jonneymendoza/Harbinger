@@ -60,17 +60,33 @@ function deriveStatus(results: ScrapeResult[], threw: boolean): ScrapeStatus {
 }
 
 /**
+ * Thrown when a scrape is requested while one is already running.
+ *
+ * A distinct type because callers need to tell it apart from a run that
+ * completed and found nothing — the admin UI reports the two very differently.
+ */
+export class ScrapeBusyError extends Error {
+  constructor() {
+    super('A scrape is already in progress. Wait for it to finish and try again.');
+    this.name = 'ScrapeBusyError';
+  }
+}
+
+/**
  * Run the pipeline once, refusing to start a second concurrent run.
  * Two overlapping runs would double the browser load and race on upserts.
+ *
+ * `work` decides the scope — every active source, or just one.
  *
  * Every run is persisted — including failures — so the admin log shows what the
  * scraper actually did rather than requiring someone to read container stdout.
  */
-async function runOnce(label: string, trigger: ScrapeTrigger): Promise<ScrapeResult[]> {
-  if (running) {
-    console.log(`[${label}] A scrape is already in progress; skipping this run.`);
-    return [];
-  }
+async function runOnce(
+  label: string,
+  trigger: ScrapeTrigger,
+  work: (service: NewsService) => Promise<ScrapeResult[]> = (s) => s.runScrapePipeline(),
+): Promise<ScrapeResult[]> {
+  if (running) throw new ScrapeBusyError();
 
   running = true;
   const startedAt = new Date();
@@ -78,7 +94,7 @@ async function runOnce(label: string, trigger: ScrapeTrigger): Promise<ScrapeRes
   let failure: string | null = null;
 
   try {
-    results = await buildService().runScrapePipeline();
+    results = await work(buildService());
     logResults(label, results);
     return results;
   } catch (error) {
@@ -119,7 +135,11 @@ export function initScraperCron(): void {
   );
 
   cron.schedule(cronExpression, () => {
-    void runOnce('Cron', 'cron').catch((error) => console.error('[Cron] Scraper job failed:', error));
+    void runOnce('Cron', 'cron').catch((error) =>
+      error instanceof ScrapeBusyError
+        ? console.log('[Cron] A scrape is already in progress; skipping this tick.')
+        : console.error('[Cron] Scraper job failed:', error),
+    );
   });
 
   console.log('[Cron] Scraper cron job initialized.');
@@ -143,7 +163,11 @@ export function scheduleInitialScrape(): void {
       const added = results.reduce((sum, r) => sum + r.articlesScraped, 0);
       console.log(`[Boot] Initial scrape finished; ${added} article(s) added.`);
     })
-    .catch((error) => console.error('[Boot] Initial scrape failed:', error));
+    .catch((error) =>
+      error instanceof ScrapeBusyError
+        ? console.log('[Boot] A scrape is already in progress; skipping the initial run.')
+        : console.error('[Boot] Initial scrape failed:', error),
+    );
 }
 
 /**
@@ -151,4 +175,24 @@ export function scheduleInitialScrape(): void {
  */
 export async function runScrapeNow(): Promise<ScrapeResult[]> {
   return runOnce('Manual', 'manual');
+}
+
+/**
+ * Scrape one source on its own, for the admin "Scrape now" button and the
+ * automatic first fetch after a source is added.
+ *
+ * Shares the concurrency guard with the full run: one source is cheap, but two
+ * scrapes at once still means two sets of browser pages competing.
+ *
+ * Returns null when the source no longer exists.
+ */
+export async function runSourceScrapeNow(sourceId: string): Promise<ScrapeResult | null> {
+  let result: ScrapeResult | null = null;
+
+  await runOnce('Source', 'source', async (service) => {
+    result = await service.runSourcePipeline(sourceId);
+    return result ? [result] : [];
+  });
+
+  return result;
 }

@@ -11,10 +11,22 @@ interface SourcesTableProps {
   onEdit: (source: Source) => void;
   onToggle: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onScrape: (source: Source) => Promise<void>;
+  /** Set while any scrape is running: they share a lock, so all rows wait. */
+  scrapeLocked?: boolean;
 }
 
-export function SourcesTable({ sources, adapters, onEdit, onToggle, onDelete }: SourcesTableProps) {
+export function SourcesTable({
+  sources,
+  adapters,
+  onEdit,
+  onToggle,
+  onDelete,
+  onScrape,
+  scrapeLocked = false,
+}: SourcesTableProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [scrapingId, setScrapingId] = useState<string | null>(null);
   // Delete is irreversible, so it takes a second click to confirm.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
@@ -25,6 +37,15 @@ export function SourcesTable({ sources, adapters, onEdit, onToggle, onDelete }: 
     } finally {
       setBusyId(null);
       setConfirmingId(null);
+    }
+  };
+
+  const scrape = async (source: Source) => {
+    setScrapingId(source._id);
+    try {
+      await onScrape(source);
+    } finally {
+      setScrapingId(null);
     }
   };
 
@@ -104,6 +125,21 @@ export function SourcesTable({ sources, adapters, onEdit, onToggle, onDelete }: 
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1.5">
+                    {/* Scrapes this source alone. A run over every source takes
+                        minutes; this returns as soon as one is done. */}
+                    <Button
+                      variant="secondary"
+                      className="px-2 py-1 text-xs"
+                      onClick={() => scrape(source)}
+                      disabled={busy || scrapeLocked}
+                      title={
+                        scrapeLocked && scrapingId !== source._id
+                          ? 'Another scrape is running'
+                          : `Fetch new articles from ${source.displayName || source.name} now`
+                      }
+                    >
+                      {scrapingId === source._id ? 'Scraping…' : 'Scrape now'}
+                    </Button>
                     <Button
                       variant="ghost"
                       className="px-2 py-1 text-xs"

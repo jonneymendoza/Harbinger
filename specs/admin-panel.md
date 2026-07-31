@@ -95,7 +95,26 @@ bot-check or refused the request outright.
 | Toggling Active State | `PATCH /api/admin/sources/:id/toggle` | `specs/api-endpoints.md` |
 | Testing Configuration | `POST /api/admin/sources/test` | *New endpoint for validation* |
 | Removing Source | `DELETE /api/admin/sources/:id` | `specs/api-endpoints.md` |
-| Manual Scrape Trigger | `POST /api/admin/sources/run-scraper` | Runs the pipeline on demand |
+| Manual Scrape Trigger | `POST /api/admin/sources/run-scraper` | Runs every active source on demand |
+| Single-Source Scrape | `POST /api/admin/sources/:id/scrape` | Scrapes one source; used by "Scrape now" and run automatically after a source is added |
+
+### 5.1 Scrape feedback
+
+A full run takes minutes, nearly all of it on sources with nothing new. Two
+things follow from that:
+
+*   **A newly added source is scraped immediately**, so the feed reflects it
+    without waiting for the hourly cron. Adding a source and finding the feed
+    unchanged reads as the source having failed.
+*   **Completion toasts report counts, not just completion.** "Scrape finished"
+    alone was shown whether or not anything had been added. The toast now states
+    articles added, links checked, and names any source that had a problem —
+    including a source that discovered **zero links**, which raises no error of
+    its own but is how a broken adapter presents.
+
+Scrapes share a single lock. A request made while one is running returns **409
+CONFLICT**, which the UI reports as "wait for the current run" rather than an
+error.
 
 ## 6. Future Extensibility
 *   **Scrape Logs:** Ability to view the logs of the hourly cron job to identify which sites are failing and why.

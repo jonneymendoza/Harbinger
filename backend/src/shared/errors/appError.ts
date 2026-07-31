@@ -25,6 +25,11 @@ export class AppError extends Error {
     return new AppError(message, 'BAD_REQUEST', 400);
   }
 
+  /** The request is valid but conflicts with current state — e.g. a scrape already running. */
+  static conflict(message = 'Conflict'): AppError {
+    return new AppError(message, 'CONFLICT', 409);
+  }
+
   static internalServerError(message = 'Internal server error'): AppError {
     return new AppError(message, 'INTERNAL_SERVER_ERROR', 500);
   }
