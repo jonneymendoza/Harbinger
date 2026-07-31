@@ -26,12 +26,22 @@ The system will follow a **Client-Server-Database** architecture with an asynchr
 *   **Strategy:** Snapshot-based storage. The system will not proxy requests but store cleaned versions of articles in MongoDB.
 *   **Dynamic Configuration:** Instead of hardcoded URLs, the scraper fetches a list of "Active Sources" from the database before each execution.
 *   **Frequency:** Automatic scrape every 60 minutes using a cron job (`node-cron`).
-*   **Extraction Pipeline:** `DB Source List` $\rightarrow$ `Playwright Headless Browser` $\rightarrow$ `Content Cleaning` $\rightarrow$ `JSON Storage`.
+*   **Extraction Pipeline:** `DB Source List` $\rightarrow$ `Source Adapter` $\rightarrow$ `Content Cleaning` $\rightarrow$ `JSON Storage`.
+ightarrow$ `Source Adapter` $
+ightarrow$ `Content Cleaning` $
+ightarrow$ `JSON Storage`.
+*   **Adapter Model:** Each source names the strategy that handles it, resolved at runtime from the `adapter` field, so a source can be added through the admin UI without a code change. Adapters request capabilities from a host (plain HTTP fetch, or a headless render) rather than driving Playwright themselves, so a browser is launched only when a source actually needs one.
+    *   `rss` — reads an RSS or Atom feed. **Preferred wherever a feed exists:** no CSS selectors, survives markup changes, one request per run instead of one per article, and it works on sites that block automated access to their HTML while publishing a feed.
+    *   `generic` — CSS-selector driven, for sites with no feed. The default for anything an operator adds by hand.
+    *   Site-specific adapters (`arsenal`, `rsi-commlink`) for sources needing bespoke handling — a sitemap-driven listing, content embedded as JSON, or a listing that mixes articles with non-article pages.
 *   **Stored Fields:** Hero Image URL, Thumbnail Image URL, Full Article Content (Cleaned), Gallery of Embedded Images [Array], Source Link, Publication Date, and Category.
+*   **Run History:** Every execution is recorded — trigger, status, duration, and per-source counts and errors — and exposed to the admin panel, so a source that quietly stops returning articles is visible rather than buried in container logs. Records expire on a TTL.
 
 ### B. Administrative Management
 *   **Admin UI:** A protected administrative dashboard within the web frontend.
-*   **Source Management:** Ability to Add, Edit, or Delete target websites (URLs) and their associated scraping selectors/metadata.
+*   **Source Management:** Ability to Add, Edit, or Delete target websites (URLs) and their associated adapter, limits and scraping selectors.
+*   **Feed Discovery:** Given a site URL, the panel probes for RSS/Atom feeds and offers what it finds. Results are presented for the operator to choose, never applied automatically — most sites publish several feeds, and selecting one silently would leave a source carrying the wrong content with no visible explanation.
+*   **Test Before Save:** A configuration can be dry-run against a single URL. The result reports whether an article could be extracted and, when it could not, *why* — distinguishing a site refusing the request, a bot-check interstitial, a missing selector, and a selector that matched nothing. Without this, a failure is indistinguishable from a misconfiguration.
 *   **Access Control:** 
     *   Initial setup via Environment Variables (`ADMIN_USER`, `ADMIN_PASS`) used to seed a master admin account upon first boot.
     *   Administrative endpoints secured via a specific `ROLE_ADMIN` claim in the JWT.
@@ -169,7 +179,7 @@ frontend/src/
 |---|---|---|
 | **Backend Runtime** | Node.js / Express | Rapid development, native JS for Playwright scrapers |
 | **Backend Architecture** | Clean Architecture (Ports & Adapters) | Isolate business logic from MongoDB, Playwright, and HTTP. Each feature is independently testable and swappable. |
-| **Scraping Engine** | Playwright + node-cron | Headless browser automation for JS-heavy sources; scheduled every 60 minutes |
+| **Scraping Engine** | Source adapters + Playwright + node-cron | Per-source strategy resolved at runtime; feeds and static pages use plain HTTP, headless rendering only where a site needs it; scheduled every 60 minutes |
 | **Database** | MongoDB (Mongoose) | Schema-less storage for varying article structures; snapshot-based persistence |
 | **Auth** | Passport.js + JWT (HS256) | OAuth 2.0 for Google/Apple/Facebook; stateless token validation on all routes |
 | **Frontend Framework** | Next.js App Router | React Server Components, built-in image optimization, SSR for SEO |
