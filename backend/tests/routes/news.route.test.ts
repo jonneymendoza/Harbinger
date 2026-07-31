@@ -71,6 +71,22 @@ describe('GET /api/news', () => {
     expect(res.body.data.articles[0].sourceName).toBe('Test Source');
   });
 
+  // The filter pills label themselves with displayName. A card reading
+  // "MMO RPG news" beneath a pill reading "MMO News" looks like a source that
+  // failed to appear.
+  it('labels a card with displayName so it matches its filter pill', async () => {
+    articleModel.find.mockReturnValue(
+      findChain([articleDoc({ sourceId: { name: 'MMO RPG news', displayName: 'MMO News' } })]),
+    );
+    const res = await request(app).get('/api/news');
+    expect(res.body.data.articles[0].sourceName).toBe('MMO News');
+  });
+
+  it('falls back to the source name when no displayName is set', async () => {
+    const res = await request(app).get('/api/news');
+    expect(res.body.data.articles[0].sourceName).toBe('Test Source');
+  });
+
   it('falls back to the stored sourceName when the source was deleted', async () => {
     articleModel.find.mockReturnValue(findChain([articleDoc({ sourceId: null })]));
     const res = await request(app).get('/api/news');
@@ -165,6 +181,14 @@ describe('GET /api/news/:id', () => {
       sourceUrl: 'https://example.com/article',
       category: 'News',
     });
+  });
+
+  it('labels the article with displayName, matching the feed', async () => {
+    articleModel.findById.mockReturnValue(
+      findByIdChain(articleDoc({ sourceId: { name: 'MMO RPG news', displayName: 'MMO News' } })),
+    );
+    const res = await request(app).get(`/api/news/${VALID_ID}`);
+    expect(res.body.data.sourceName).toBe('MMO News');
   });
 
   it('returns 400 for a malformed id', async () => {

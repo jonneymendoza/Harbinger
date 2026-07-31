@@ -20,9 +20,10 @@ export const FEED_PAGE_SIZE = 20;
  * so adding a source adds its filter with no frontend change.
  */
 export function useFeedSources() {
-  const { data, error, isLoading } = useSWR<FeedSourcesResponse>(`${API_URL}/news/sources`, fetcher, {
-    revalidateOnFocus: false,
-  });
+  // Revalidates on focus, deliberately: the article grid does too, and pinning
+  // only this one meant a scrape could add a source while the pills kept
+  // showing the old list and counts — which reads as "my new source is missing".
+  const { data, error, isLoading } = useSWR<FeedSourcesResponse>(`${API_URL}/news/sources`, fetcher);
 
   return {
     sources: data?.sources ?? [],
