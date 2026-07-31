@@ -10,6 +10,7 @@ import {
   suggestAdapterForUrl,
 } from '@infrastructure/scraper/adapters';
 import { runScrapeNow } from '@cron/scraperCron';
+import { ScrapeRunRepository } from '@infrastructure/repositories/scrapeRunRepository';
 
 const router = Router();
 
@@ -303,6 +304,35 @@ router.post('/test', async (req: Request, res: Response, next: NextFunction) => 
     next(error);
   } finally {
     await scraper.destroy();
+  }
+});
+
+/**
+ * GET /api/admin/sources/scrape-runs
+ * Recent scrape runs, newest first. This is the only durable record of what the
+ * pipeline did — previously it existed solely in container stdout, so a source
+ * that quietly began returning zero links could go unnoticed indefinitely.
+ */
+router.get('/scrape-runs', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
+
+    const { runs, totalRuns } = await new ScrapeRunRepository().findRecent(page, limit);
+
+    res.json({
+      success: true,
+      data: {
+        runs,
+        totalRuns,
+        currentPage: page,
+        pageSize: limit,
+        totalPages: Math.max(1, Math.ceil(totalRuns / limit)),
+      },
+      error: null,
+    });
+  } catch (error) {
+    next(error);
   }
 });
 

@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { api } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/lib/AuthContext';
+import { showError, showSuccess } from '@/features/ui/toast';
 
 export interface ToggleResult {
   success: boolean;
@@ -95,11 +96,16 @@ export function BookmarksProvider({ children }: { children: ReactNode }) {
           : await api.auth.post('/bookmarks', { articleId });
 
         if (res.error?.code === 'GUEST_UPGRADE_REQUIRED') {
+          // The upgrade modal is the feedback here; a toast would double up.
           triggerUpgradePrompt();
           return { success: false, upgradeNeeded: true };
         }
 
         if (!res.success) {
+          showError(
+            wasBookmarked ? 'Could not remove bookmark' : 'Could not save bookmark',
+            res.error?.message,
+          );
           return { success: false };
         }
 
@@ -110,8 +116,13 @@ export function BookmarksProvider({ children }: { children: ReactNode }) {
           return next;
         });
 
+        // Toasting from the context means the feed, article page and bookmarks
+        // page all give the same feedback without repeating it three times.
+        showSuccess(wasBookmarked ? 'Bookmark removed' : 'Article bookmarked');
+
         return { success: true, action: wasBookmarked ? 'removed' : 'bookmarked' };
       } catch {
+        showError('Something went wrong', 'Check your connection and try again.');
         return { success: false };
       } finally {
         setPending(articleId, false);
