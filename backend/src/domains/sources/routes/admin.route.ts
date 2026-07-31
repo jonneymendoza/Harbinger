@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
+import * as cheerio from 'cheerio';
 import { SourceInput } from '@domains/news/interfaces/ISourceRepository';
 import { AppError } from '@shared/errors/appError';
 import { PlaywrightScraper } from '@infrastructure/scraper/playwrightScraper';
@@ -269,34 +270,109 @@ router.post('/test', async (req: Request, res: Response, next: NextFunction) => 
     return next(AppError.badRequest('Invalid URL format'));
   }
 
+  const adapter = req.body.adapter || 'generic';
+  const selectors = {
+    articleLinkSelector: req.body.articleLinkSelector || '',
+    contentSelector: req.body.contentSelector || '',
+    titleSelector: req.body.titleSelector || '',
+    imageSelector: req.body.imageSelector || '',
+  };
+
   const scraper = new PlaywrightScraper();
   try {
-    const result = await scraper.scrapeArticle(url, {
-      name: req.body.name || 'Test Source',
-      baseUrl: url,
-      adapter: req.body.adapter || 'generic',
-      articleLinkSelector: req.body.articleLinkSelector || '',
-      contentSelector: req.body.contentSelector || '',
-      titleSelector: req.body.titleSelector || '',
-      imageSelector: req.body.imageSelector || '',
-      isActive: true,
-      _id: {} as any,
-    } as any);
-
-    if (!result) {
-      return next(AppError.badRequest('Failed to scrape the provided URL with the given configuration'));
+    // Fetch once for diagnostics, so a failure can say *why* rather than just
+    // that it failed. Without this the only explanation lived in container
+    // stdout, which the operator cannot see.
+    let html = '';
+    let fetchError: string | null = null;
+    try {
+      html = await scraper.renderHtml(url);
+    } catch (err) {
+      fetchError = err instanceof Error ? err.message : String(err);
     }
+
+    const $ = html ? cheerio.load(html) : null;
+    const bodyText = $ ? $('body').text().replace(/\s+/g, ' ').trim() : '';
+    const count = (sel: string) => (sel && $ ? $(sel).length : null);
+
+    // Interstitials return HTTP 200 with a page that is not the article, so a
+    // status code alone cannot distinguish them.
+    const head = bodyText.slice(0, 2000);
+    const pageTitleText = $ ? $('title').text().trim() : '';
+    const botChallenge =
+      /bot check|just a moment|checking your browser|enable javascript and cookies|captcha|attention required/i.test(head);
+    // Some sites answer an automated client with an error page rather than a
+    // challenge, and it still arrives as a normal render.
+    const accessBlocked =
+      /^\s*(40[0-9]|50[0-9])|access denied|forbidden|not authori[sz]ed|request blocked/i.test(pageTitleText) ||
+      /access denied|you (do not|don't) have permission|request blocked/i.test(head);
+
+    const diagnostics = {
+      pageTitle: $ ? $('title').text().trim().slice(0, 120) : null,
+      renderedChars: html.length,
+      visibleTextChars: bodyText.length,
+      botChallengeDetected: botChallenge,
+      accessBlocked,
+      hasOgTitle: $ ? $('meta[property="og:title"]').length > 0 : false,
+      hasOgImage: $ ? $('meta[property="og:image"]').length > 0 : false,
+      paragraphCount: $ ? $('p').length : 0,
+      selectorMatches: {
+        articleLink: count(selectors.articleLinkSelector),
+        content: count(selectors.contentSelector),
+        title: count(selectors.titleSelector),
+        image: count(selectors.imageSelector),
+      },
+      fetchError,
+    };
+
+    const article = fetchError
+      ? null
+      : await scraper.scrapeArticle(url, {
+          name: req.body.name || 'Test Source',
+          baseUrl: url,
+          adapter,
+          ...selectors,
+          isActive: true,
+          _id: {} as any,
+        } as any);
+
+    // Ordered most-specific first, so the operator gets the actionable cause
+    // rather than a downstream symptom.
+    const reason = (() => {
+      if (article) return null;
+      if (fetchError) return `The page could not be loaded: ${fetchError}`;
+      // Reported before anything about selectors: no selector can match a page
+      // the site refused to serve.
+      if (accessBlocked)
+        return `The site refused the request and returned "${diagnostics.pageTitle}" instead of the article. It is blocking automated access from this server, so no selector will help.`;
+      if (botChallenge)
+        return 'The site returned a bot-check page instead of the article. Automated scraping is being blocked, so no selector will match.';
+      if (adapter === 'generic' && !selectors.contentSelector)
+        return 'No "Main content body" selector was provided, and the generic adapter needs one to find the article text.';
+      if (diagnostics.selectorMatches.content === 0)
+        return `The content selector "${selectors.contentSelector}" matched no elements on this page. Check it against the page, or confirm this URL is an article rather than a listing page.`;
+      if (diagnostics.paragraphCount === 0)
+        return 'The rendered page contained no paragraphs, so it is probably a listing page, a redirect, or not fully loaded.';
+      return 'The adapter could not extract an article from this page.';
+    })();
 
     res.json({
       success: true,
       data: {
-        title: result.title,
-        heroImage: result.heroImage,
-        fullContent: result.fullContent,
-        summary: result.summary,
-        contentImages: result.contentImages,
-        publishedAt: result.publishedAt,
-        category: result.category,
+        ok: article !== null,
+        reason,
+        diagnostics,
+        article: article
+          ? {
+              title: article.title,
+              heroImage: article.heroImage,
+              fullContent: article.fullContent,
+              summary: article.summary,
+              contentImages: article.contentImages,
+              publishedAt: article.publishedAt,
+              category: article.category,
+            }
+          : null,
       },
       error: null,
     });

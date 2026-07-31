@@ -178,7 +178,7 @@ measured rather than assumed.
 
 ---
 
-## Phase 6: Protected + Admin UI [🟡 IN PROGRESS]
+## Phase 6: Protected + Admin UI [✅ COMPLETE]
 
 ### Admin source management [✅ DONE]
 - [x] **Admin sign-in** — `POST /api/auth/login` verifies `passwordHash` against `provider: 'local'` accounts and issues a role-bearing token. Unblocks the whole phase: `ADMIN_USER`/`ADMIN_PASS` seed an admin, but OAuth can never reach it, so the Phase 4 admin endpoints previously needed a hand-minted JWT. Failures are indistinguishable between unknown account and wrong password, and the route has its own rate limit (10 per 15 min)
@@ -217,9 +217,21 @@ measured rather than assumed.
 - [x] `/admin/logs` — run table with expandable per-source detail, auto-refreshing every 30s
 - [x] A source that discovers **zero links** is flagged as degraded even though it raises no error. That is precisely how a silently broken adapter presents, and it is what went unnoticed with Arsenal
 
+### Sidebar navigation [✅ DONE]
+- [x] `app/(admin)/layout.tsx` — one shell for every `/admin/*` route. `AdminGuard` moved here, so a new admin screen is protected by existing rather than by remembering to wrap itself
+- [x] `AdminSidebar` with Sources and Scrape logs, plus "Back to feed". Active state via `usePathname`, with `/admin` matched exactly — it is a prefix of every admin route, so a `startsWith` check would mark it active on every page
+- [x] Vertical rail from `lg` up, horizontal strip below it. A drawer would need open/close state and a focus trap for two links
+- [x] Removed the ad-hoc cross-links the pages carried before
+
+> **Deliberately two items, not three.** `specs/admin-panel.md §4` lists
+> Dashboard → Sources → System Logs, but there is no Dashboard page and one that
+> duplicated Sources would be filler. Worth adding once it has something real to
+> show — last run status, per-source article counts — now that scrape runs are
+> persisted.
+
 ### Remaining
-- [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`) — now worth doing, since there are two real destinations to move between
 - [x] Dark mode toggle — see [Phase 5b](#phase-5b-dark--light-mode-toggle--complete)
+- [ ] Dashboard screen (optional) — at-a-glance health: last run status, articles per source, active source count
 
 **What this gives you:** An administrator can sign in, manage scraping sources
 entirely through the UI — add, test, edit, activate and delete — and see what the
@@ -239,7 +251,7 @@ save articles and revisit them from a dedicated page.
 | 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
 | 5b (Dark / Light Mode) | — done | Surfaces to audit exist (Phase 5) ✓ |
-| 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
+| 6 (Auth + Admin UI) | — done | Phases 4 & 5 complete ✓ |
 | 6a (Admin source management) | — done | Phase 4 admin endpoints ✓ |
 
 **Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6 (5b can land any time after 5)
