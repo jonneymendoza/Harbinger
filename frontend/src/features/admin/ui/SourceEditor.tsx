@@ -24,6 +24,17 @@ function isValidUrl(value: string): boolean {
   }
 }
 
+function Detail({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="shrink-0 text-red-800/80 dark:text-red-300/80">{label}:</dt>
+      <dd className={`min-w-0 break-words ${emphasis ? 'font-semibold text-red-900 dark:text-red-200' : 'text-red-800 dark:text-red-300'}`}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 export function SourceEditor({
   adapters,
   values,
@@ -38,6 +49,7 @@ export function SourceEditor({
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestScrapeResult | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [touched, setTouched] = useState(false);
 
   const adapter = findAdapter(adapters, values.adapter);
@@ -94,8 +106,14 @@ export function SourceEditor({
     setTesting(true);
     setTestError(null);
     setTestResult(null);
+    setShowDiagnostics(false);
     try {
-      setTestResult(await testScrape(url, values, requiresSelectors));
+      const result = await testScrape(url, values, requiresSelectors);
+      setTestResult(result);
+      // Open the detail automatically on failure — that is the moment the
+      // operator needs it, and hiding it behind a click is what made the old
+      // one-line error so unhelpful.
+      if (!result.ok) setShowDiagnostics(true);
     } catch (err) {
       setTestError(err instanceof Error ? err.message : 'Test scrape failed');
     } finally {
@@ -254,34 +272,88 @@ export function SourceEditor({
           </Button>
         </div>
 
-        {testResult && (
+        {testResult?.ok && testResult.article && (
           <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-400">
               Preview
             </p>
             <div className="flex gap-3">
-              {testResult.heroImage && (
+              {testResult.article.heroImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={testResult.heroImage}
+                  src={testResult.article.heroImage}
                   alt=""
                   className="h-20 w-32 shrink-0 rounded object-cover"
                 />
               )}
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-900 dark:text-white">
-                  {testResult.title || <span className="text-red-600">No title found</span>}
+                  {testResult.article.title || <span className="text-red-700">No title found</span>}
                 </p>
                 <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">
-                  {testResult.summary || 'No summary extracted'}
+                  {testResult.article.summary || 'No summary extracted'}
                 </p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                  {testResult.fullContent.length.toLocaleString()} chars ·{' '}
-                  {testResult.contentImages.length} image(s)
-                  {testResult.category ? ` · ${testResult.category}` : ''}
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  {testResult.article.fullContent.length.toLocaleString()} chars ·{' '}
+                  {testResult.article.contentImages.length} image(s)
+                  {testResult.article.category ? ` · ${testResult.article.category}` : ''}
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {testResult && !testResult.ok && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-500/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-300">
+              Test failed
+            </p>
+            <p className="mt-1 text-sm text-red-800 dark:text-red-300">{testResult.reason}</p>
+
+            <button
+              type="button"
+              onClick={() => setShowDiagnostics((v) => !v)}
+              aria-expanded={showDiagnostics}
+              className="mt-2 text-xs font-medium text-red-800 underline underline-offset-2 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 dark:text-red-300 dark:hover:text-red-200"
+            >
+              {showDiagnostics ? 'Hide details' : 'View details — what the scraper saw'}
+            </button>
+
+            {showDiagnostics && (
+              <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 border-t border-red-200 pt-3 text-xs sm:grid-cols-2 dark:border-red-500/30">
+                <Detail label="Page title" value={testResult.diagnostics.pageTitle || '(none)'} />
+                <Detail
+                  label="Rendered"
+                  value={`${testResult.diagnostics.renderedChars.toLocaleString()} chars HTML, ${testResult.diagnostics.visibleTextChars.toLocaleString()} visible`}
+                />
+                <Detail label="Paragraphs found" value={String(testResult.diagnostics.paragraphCount)} />
+                <Detail
+                  label="og:title / og:image"
+                  value={`${testResult.diagnostics.hasOgTitle ? 'yes' : 'no'} / ${testResult.diagnostics.hasOgImage ? 'yes' : 'no'}`}
+                />
+                {testResult.diagnostics.accessBlocked && (
+                  <Detail label="Access" value="Blocked by the site" emphasis />
+                )}
+                {testResult.diagnostics.botChallengeDetected && (
+                  <Detail label="Bot check" value="Served instead of the page" emphasis />
+                )}
+                {testResult.diagnostics.fetchError && (
+                  <Detail label="Fetch error" value={testResult.diagnostics.fetchError} emphasis />
+                )}
+                <Detail
+                  label="Selector matches"
+                  value={
+                    (['articleLink', 'content', 'title', 'image'] as const)
+                      .map((k) => {
+                        const n = testResult.diagnostics.selectorMatches[k];
+                        return n === null ? null : `${k}: ${n}`;
+                      })
+                      .filter(Boolean)
+                      .join(' · ') || 'none provided'
+                  }
+                />
+              </dl>
+            )}
           </div>
         )}
       </div>
