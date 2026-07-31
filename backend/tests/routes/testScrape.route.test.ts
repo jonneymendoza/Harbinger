@@ -23,7 +23,11 @@ vi.mock('@infrastructure/scraper/playwrightScraper', () => ({
     return scraperInstance;
   },
 }));
-vi.mock('@cron/scraperCron', () => ({ runScrapeNow: vi.fn() }));
+vi.mock('@cron/scraperCron', () => ({
+  runScrapeNow: vi.fn(),
+  runSourceScrapeNow: vi.fn(),
+  ScrapeBusyError: class ScrapeBusyError extends Error {},
+}));
 vi.mock('@infrastructure/repositories/scrapeRunRepository', () => ({
   ScrapeRunRepository: function ScrapeRunRepository() {
     return { findRecent: vi.fn(), record: vi.fn() };

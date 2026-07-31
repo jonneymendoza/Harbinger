@@ -69,6 +69,38 @@ export class NewsService {
   }
 
   /**
+   * Run the pipeline for one source only.
+   *
+   * Exists so adding a source can populate it immediately instead of waiting
+   * for a run over every source — which takes minutes, most of it spent on
+   * sources that have nothing new.
+   *
+   * Inactive sources are still scraped when asked for by id: the request is an
+   * explicit instruction, unlike the scheduled run that skips them by design.
+   */
+  async runSourcePipeline(sourceId: string): Promise<ScrapeResult | null> {
+    const source = await this.sourceRepository.findById(sourceId);
+    if (!source) return null;
+
+    console.log(`[NewsService] Starting single-source scrape for "${source.name}"...`);
+
+    try {
+      return await this.scrapeSource(source);
+    } catch (error) {
+      console.error(`[NewsService] Failed to scrape source "${source.name}":`, error);
+      return {
+        sourceId: source._id ? String(source._id) : null,
+        sourceName: source.name,
+        linksDiscovered: 0,
+        articlesScraped: 0,
+        articlesSkipped: 0,
+        articlesRejected: 0,
+        errors: [error instanceof Error ? error.message : String(error)],
+      };
+    }
+  }
+
+  /**
    * Scrape a single source: Link Discovery → Deep Scraping → Cleaning → Upsert
    */
   private async scrapeSource(source: Source): Promise<ScrapeResult> {

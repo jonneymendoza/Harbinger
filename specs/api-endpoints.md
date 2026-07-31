@@ -150,6 +150,39 @@ This document defines the "contract" between the Backend Server and all clients 
 *   **Description:** Remove a source target from the system.
 *   **Response:** `{ "success": true, "message": "Source removed." }`
 
+### `POST /api/admin/sources/run-scraper`
+*   **Description:** Run the pipeline over every active source.
+*   **Response:** `data` is an array of per-source results (see below).
+*   **Errors:** `409 CONFLICT` if a scrape is already running.
+
+### `POST /api/admin/sources/:id/scrape`
+*   **Description:** Scrape a single source immediately, without running the
+    others. Called by the admin "Scrape now" button, and automatically once a
+    new source has been added — a full run takes minutes.
+*   **Note:** Scrapes the source even when it is inactive. Asking for a source
+    by id is an explicit instruction, unlike the scheduled run that skips
+    inactive sources by design.
+*   **Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "sourceId": "6a6cbce46ee05e973cb55b99",
+    "sourceName": "MMO RPG news",
+    "linksDiscovered": 30,
+    "articlesScraped": 30,
+    "articlesSkipped": 0,
+    "articlesRejected": 0,
+    "errors": []
+  },
+  "error": null
+}
+```
+*   **Errors:** `400` for a malformed id, `404` if the source does not exist,
+    `409 CONFLICT` if a scrape is already running.
+*   **Note:** `linksDiscovered: 0` with an empty `errors` array is a *failure* —
+    it is how a silently broken adapter presents. Callers should surface it.
+
 ## 6. Error Code Map
 | HTTP Code | Internal Error Code | Meaning |
 | :--- | :--- | :--- |
@@ -157,4 +190,5 @@ This document defines the "contract" between the Backend Server and all clients 
 | `401` | `UNAUTHORIZED` | Token missing, expired, or invalid. |
 | `403` | `FORBIDDEN` | Authenticated but lacks Admin privileges. |
 | `404` | `NOT_FOUND` | Article or Source ID does not exist. |
+| `409` | `CONFLICT` | Valid request, wrong moment — e.g. a scrape is already running. |
 | `500` | `SERVER_ERROR` | Database connection failure or internal crash. |

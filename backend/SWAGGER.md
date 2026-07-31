@@ -638,7 +638,84 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"                     
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/sources/run-scraper:
+    post:
+      tags: [Admin]
+      summary: Run the scrape pipeline over every active source
+      operationId: runScraper
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Run finished; one result per source
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ScrapeSourceResult"
+                  error: { type: "null", example: null }
+        "409":
+          description: A scrape is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/sources/{id}/scrape:
+    post:
+      tags: [Admin]
+      summary: Scrape a single source immediately
+      description: >
+        Runs one source without the others. Used by the admin "Scrape now"
+        button and run automatically after a source is added, since a full run
+        takes minutes and spends nearly all of it on sources with nothing new.
+        Scrapes the source even when inactive — asking for it by id is an
+        explicit instruction, unlike the scheduled run.
+      operationId: scrapeSource
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: mongo-object-id
+      responses:
+        "200":
+          description: Scrape finished. Note that linksDiscovered=0 with no errors is a failure.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: "#/components/schemas/ScrapeSourceResult"
+                  error: { type: "null", example: null }
+        "400":
+          description: Malformed source ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Source does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: A scrape is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
   securitySchemes:
     bearerAuth:
@@ -648,6 +725,26 @@ components:
       description: JWT returned by the OAuth callback endpoints.
 
   schemas:
+    # ── Scraping ───────────────────────────────────────────────
+
+    ScrapeSourceResult:
+      type: object
+      description: >
+        One source's outcome from a scrape run. `linksDiscovered: 0` with an
+        empty `errors` array is a failure, not a quiet success — it is how a
+        silently broken adapter presents.
+      required: [sourceId, sourceName, linksDiscovered, articlesScraped, articlesSkipped, articlesRejected, errors]
+      properties:
+        sourceId: { type: string, format: mongo-object-id, nullable: true }
+        sourceName: { type: string, example: MMO RPG news }
+        linksDiscovered: { type: integer, example: 30 }
+        articlesScraped: { type: integer, description: Newly stored this run, example: 30 }
+        articlesSkipped: { type: integer, description: Already stored from an earlier run, example: 0 }
+        articlesRejected: { type: integer, description: Fetched but judged not to be an article, example: 0 }
+        errors:
+          type: array
+          items: { type: string }
+
     # ── Envelopes ──────────────────────────────────────────────
 
     SuccessEnvelope:
@@ -755,3 +852,8 @@ components:
 | 10 | `POST` | `/api/bookmarks/:articleId` | ✅ Bearer JWT (USER only) | Add article to user's bookmarks |
 | 11 | `DELETE` | `/api/bookmarks/:articleId` | ✅ Bearer JWT (USER only) | Remove specific bookmark |
 | 12 | `DELETE` | `/api/bookmarks` | ✅ Bearer JWT (USER only) | Clear all bookmarks for user |
+| 13 | `POST` | `/api/admin/sources/run-scraper` | ✅ Bearer JWT (ADMIN) | Scrape every active source |
+| 14 | `POST` | `/api/admin/sources/:id/scrape` | ✅ Bearer JWT (ADMIN) | Scrape one source immediately |
+
+> The remaining `/api/admin/sources` CRUD and `/api/news` routes are specified in
+> `specs/api-endpoints.md` and are not yet mirrored here.

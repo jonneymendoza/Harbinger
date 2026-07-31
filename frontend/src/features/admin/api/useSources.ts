@@ -7,6 +7,7 @@ import {
   Adapter,
   AdaptersResponse,
   FeedDiscoveryResult,
+  ScrapeRunSourceResult,
   Source,
   SourceFormValues,
   TestScrapeResult,
@@ -63,11 +64,17 @@ export function useSources() {
     return res.data ?? [];
   });
 
+  // Returns the new id so the caller can scrape the source straight away
+  // instead of waiting for the next run over every source.
   const create = useCallback(
-    async (values: SourceFormValues, requiresSelectors: boolean) => {
-      const res = await api.auth.post(SOURCES_KEY, toPayload(values, requiresSelectors));
+    async (values: SourceFormValues, requiresSelectors: boolean): Promise<string | null> => {
+      const res = await api.auth.post<{ insertedId: string }>(
+        SOURCES_KEY,
+        toPayload(values, requiresSelectors),
+      );
       if (!res.success) throw new Error(res.error?.message || 'Failed to create source');
       await mutate();
+      return res.data?.insertedId ?? null;
     },
     [mutate],
   );
@@ -158,10 +165,72 @@ export async function discoverFeeds(url: string): Promise<FeedDiscoveryResult> {
   return res.data;
 }
 
-export async function runScraper(): Promise<unknown> {
-  const res = await api.auth.post('/admin/sources/run-scraper', {});
+/**
+ * Runs every active source. Returns each source's counts so the completion
+ * toast can say what actually happened, rather than just "finished".
+ */
+export async function runScraper(): Promise<ScrapeRunSourceResult[]> {
+  const res = await api.auth.post<ScrapeRunSourceResult[]>('/admin/sources/run-scraper', {});
   if (!res.success) throw new Error(res.error?.message || 'Failed to run scraper');
+  return res.data ?? [];
+}
+
+/**
+ * Scrapes one source immediately. Used by the per-row "Scrape now" button and
+ * run automatically after a source is added — a full run takes minutes, nearly
+ * all of it on sources that have nothing new.
+ */
+export async function scrapeSource(id: string): Promise<ScrapeRunSourceResult> {
+  const res = await api.auth.post<ScrapeRunSourceResult>(`${SOURCES_KEY}/${id}/scrape`, {});
+  if (!res.success || !res.data) {
+    throw new Error(res.error?.message || 'Failed to scrape source');
+  }
   return res.data;
+}
+
+/**
+ * Turns a result into the sentence the toast shows. Zero new articles is a
+ * normal outcome on a source already up to date, so it reads as success — but
+ * discovering no links at all is how a broken adapter presents, and says so.
+ */
+export function describeScrapeResult(
+  result: ScrapeRunSourceResult,
+  /**
+   * What to call the source. The result carries the canonical `name` — which
+   * is what belongs in the scrape log — but the admin chose a display name and
+   * expects to see that, so the caller passes it when it knows it.
+   */
+  label = result.sourceName,
+): {
+  ok: boolean;
+  message: string;
+  detail: string;
+} {
+  const { articlesScraped, articlesSkipped, articlesRejected, linksDiscovered, errors } = result;
+
+  if (errors.length > 0) {
+    return { ok: false, message: `${label} failed`, detail: errors[0] };
+  }
+
+  if (linksDiscovered === 0) {
+    return {
+      ok: false,
+      message: `${label} found no articles`,
+      detail: 'The adapter discovered no links. Check the configuration or try a feed instead.',
+    };
+  }
+
+  const parts = [`${articlesSkipped} already stored`];
+  if (articlesRejected > 0) parts.push(`${articlesRejected} not articles`);
+
+  return {
+    ok: true,
+    message:
+      articlesScraped > 0
+        ? `${label}: ${articlesScraped} new article${articlesScraped === 1 ? '' : 's'}`
+        : `${label} is up to date`,
+    detail: `${linksDiscovered} link${linksDiscovered === 1 ? '' : 's'} checked, ${parts.join(', ')}.`,
+  };
 }
 
 export function findAdapter(adapters: Adapter[], key: string): Adapter | undefined {
