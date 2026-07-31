@@ -72,7 +72,10 @@ function RunRow({ run }: { run: ScrapeRun }) {
         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
           {run.results.length} source{run.results.length === 1 ? '' : 's'}
           {degraded > 0 && (
-            <span className="ml-1 text-amber-600 dark:text-amber-400">· {degraded} needing attention</span>
+            <span className="ml-1 text-amber-700 dark:text-amber-400">
+              {/* amber-600 on white is only 3.2:1; amber-700 clears AA. */}· {degraded} needing
+              attention
+            </span>
           )}
         </td>
         <td className="px-4 py-3 text-right">

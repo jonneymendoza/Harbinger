@@ -205,7 +205,7 @@ export default function BookmarksPage() {
                   <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 flex-1">{article.summary}</p>
 
                   {/* Meta strip */}
-                  <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <span>{article.sourceName}</span>
                     <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
                   </div>
