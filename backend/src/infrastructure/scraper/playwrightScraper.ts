@@ -66,7 +66,8 @@ export class PlaywrightScraper implements IScraperStrategy {
     };
   }
 
-  private async fetchHtml(url: string): Promise<string> {
+  /** Public so the admin test endpoint can gather diagnostics. */
+  async fetchHtml(url: string): Promise<string> {
     const response = await fetch(url, {
       headers: {
         'User-Agent': getRandomUserAgent(),
@@ -82,7 +83,8 @@ export class PlaywrightScraper implements IScraperStrategy {
     return response.text();
   }
 
-  private async renderHtml(
+  /** Public so the admin test endpoint can gather diagnostics. */
+  async renderHtml(
     url: string,
     opts?: { waitForSelector?: string; timeoutMs?: number },
   ): Promise<string> {

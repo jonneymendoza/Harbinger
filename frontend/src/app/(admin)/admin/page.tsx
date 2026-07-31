@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/shared/ui';
-import { AdminGuard } from '@/features/admin/ui/AdminGuard';
 import { SourcesTable } from '@/features/admin/ui/SourcesTable';
 import { SourceEditor } from '@/features/admin/ui/SourceEditor';
 import { useAdapters, useSources, runScraper } from '@/features/admin/api/useSources';
@@ -78,19 +76,12 @@ function Dashboard() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Sources</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Scraping targets for the hourly job.{' '}
-            <Link href="/admin/logs" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              Scrape logs
-            </Link>
-            {' · '}
-            <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              View feed
-            </Link>
+            Scraping targets for the hourly job.
           </p>
         </div>
         <div className="flex gap-2">
@@ -143,9 +134,5 @@ function Dashboard() {
 }
 
 export default function AdminPage() {
-  return (
-    <AdminGuard>
-      <Dashboard />
-    </AdminGuard>
-  );
+  return <Dashboard />;
 }

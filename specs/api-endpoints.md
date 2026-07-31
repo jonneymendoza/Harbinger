@@ -89,14 +89,58 @@ This document defines the "contract" between the Backend Server and all clients 
     ```json
     {
       "name": "String",
-      "baseUrl": "URL",
-      "articleLinkSelector": "CSS Selector",
-      "contentSelector": "CSS Selector",
+      "displayName": "String (optional, defaults to name)",
+      "baseUrl": "URL — listing page, or the feed itself for the rss adapter",
+      "adapter": "String — rss | generic | arsenal | rsi-commlink (default: generic)",
+      "articleLimit": "Number (optional, 1-200)",
+      "articleLinkSelector": "CSS Selector — required for the generic adapter only",
+      "contentSelector": "CSS Selector — required for the generic adapter only",
       "titleSelector": "CSS Selector",
       "imageSelector": "CSS Selector",
       "isActive": boolean
     }
     ```
+*   **Validation:** Selector fields are required only when the chosen adapter reports `requiresSelectors`. Site-specific and feed adapters know their own structure and take none.
+
+### `GET /api/admin/sources/discover-feeds?url=`
+*   **Description:** Probes a site for RSS/Atom feeds so the operator can pick one instead of hunting for the path.
+*   **Behaviour:** Checks the page's declared `<link rel="alternate">` tags first, then a list of common feed paths. Every candidate is fetched and parsed before being reported, so a path returning 200 HTML for a missing feed is rejected. The path fallback runs even when the page itself is refused, so a blocked site's feed is still found.
+*   **Response Data:**
+    ```json
+    {
+      "feeds": [
+        { "url": "URL", "title": "String", "itemCount": 113, "source": "declared | common-path | provided" }
+      ],
+      "recommendedAdapter": "rss | generic"
+    }
+    ```
+*   **Note:** Reports candidates only. Selection is left to the operator — most sites publish several feeds, and choosing silently would leave a source carrying the wrong content with no visible explanation.
+
+### `POST /api/admin/sources/test`
+*   **Description:** Dry-runs a candidate configuration against one URL, reporting whether an article could be extracted and, when it could not, **why**.
+*   **Request Body:** `{ url, adapter, baseUrl?, name?, articleLinkSelector?, contentSelector?, titleSelector?, imageSelector? }`
+*   **Response Data:**
+    ```json
+    {
+      "ok": false,
+      "reason": "Plain-language cause, or null when ok",
+      "diagnostics": {
+        "pageTitle": "String | null",
+        "renderedChars": 3356,
+        "visibleTextChars": 204,
+        "botChallengeDetected": false,
+        "accessBlocked": true,
+        "hasOgTitle": false,
+        "hasOgImage": false,
+        "paragraphCount": 1,
+        "selectorMatches": { "articleLink": null, "content": 0, "title": null, "image": null },
+        "fetchError": "String | null"
+      },
+      "article": null
+    }
+    ```
+*   **Reason ordering:** most-specific first, so the operator gets the actionable cause rather than a downstream symptom — load failure, then a site refusing the request, then a bot-check interstitial, then a missing selector, then a selector that matched nothing, then a page with no paragraphs. A site block is reported ahead of anything about selectors, because no selector can match a page that was never served.
+*   **Note:** Returns `200` with `ok: false` for a configuration that does not work; the request itself succeeded. `4xx` is reserved for a malformed request. Diagnostics are returned on success too.
 
 ### `PUT /api/admin/sources/:id`
 *   **Description:** Update existing source configuration.

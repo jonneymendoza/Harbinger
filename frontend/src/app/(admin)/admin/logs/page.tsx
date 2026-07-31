@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/shared/ui';
-import { AdminGuard } from '@/features/admin/ui/AdminGuard';
 import { useScrapeRuns } from '@/features/admin/api/useScrapeRuns';
 import { ScrapeRun, ScrapeRunSourceResult, ScrapeStatus } from '@/features/admin/types';
 
@@ -72,7 +70,10 @@ function RunRow({ run }: { run: ScrapeRun }) {
         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
           {run.results.length} source{run.results.length === 1 ? '' : 's'}
           {degraded > 0 && (
-            <span className="ml-1 text-amber-600 dark:text-amber-400">· {degraded} needing attention</span>
+            <span className="ml-1 text-amber-700 dark:text-amber-400">
+              {/* amber-600 on white is only 3.2:1; amber-700 clears AA. */}· {degraded} needing
+              attention
+            </span>
           )}
         </td>
         <td className="px-4 py-3 text-right">
@@ -152,15 +153,14 @@ function Logs() {
   const { runs, totalRuns, totalPages, isLoading, isError, error, refresh } = useScrapeRuns(page);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Scrape logs</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {totalRuns > 0 ? `${totalRuns} run${totalRuns === 1 ? '' : 's'} recorded. ` : ''}
-            <Link href="/admin" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              Back to sources
-            </Link>
+            {totalRuns > 0
+              ? `${totalRuns} run${totalRuns === 1 ? '' : 's'} recorded.`
+              : 'Every scrape is recorded here.'}
           </p>
         </div>
         <Button variant="secondary" onClick={() => void refresh()}>
@@ -234,9 +234,5 @@ function Logs() {
 }
 
 export default function AdminLogsPage() {
-  return (
-    <AdminGuard>
-      <Logs />
-    </AdminGuard>
-  );
+  return <Logs />;
 }

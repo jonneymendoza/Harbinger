@@ -32,8 +32,8 @@ export interface AdaptersResponse {
   suggested: string | null;
 }
 
-/** Preview returned by POST /api/admin/sources/test. */
-export interface TestScrapeResult {
+/** The article preview, when the test succeeded. */
+export interface TestScrapeArticle {
   title: string;
   heroImage: string | null;
   fullContent: string;
@@ -41,6 +41,62 @@ export interface TestScrapeResult {
   contentImages: string[];
   publishedAt: string;
   category: string | null;
+}
+
+/**
+ * What the page actually looked like to the scraper. Returned whether the test
+ * passed or failed — a failure is only actionable if you can see why.
+ */
+export interface TestScrapeDiagnostics {
+  pageTitle: string | null;
+  renderedChars: number;
+  visibleTextChars: number;
+  botChallengeDetected: boolean;
+  accessBlocked: boolean;
+  hasOgTitle: boolean;
+  hasOgImage: boolean;
+  paragraphCount: number;
+  selectorMatches: {
+    articleLink: number | null;
+    content: number | null;
+    title: number | null;
+    image: number | null;
+  };
+  fetchError: string | null;
+}
+
+/** Result of POST /api/admin/sources/test. */
+export interface TestScrapeResult {
+  ok: boolean;
+  /** Plain-language cause when `ok` is false. */
+  reason: string | null;
+  diagnostics: TestScrapeDiagnostics;
+  article: TestScrapeArticle | null;
+}
+
+/** A feed found by probing a site, offered for the operator to choose. */
+export interface DiscoveredFeed {
+  url: string;
+  title: string;
+  itemCount: number;
+  /** `declared` came from the page's own <link rel="alternate">. */
+  source: 'declared' | 'common-path' | 'provided';
+}
+
+/** A sitemap found by probing. */
+export interface DiscoveredSitemap {
+  url: string;
+  entryCount: number;
+  isIndex: boolean;
+  source: 'robots' | 'common-path' | 'provided';
+}
+
+/** Everything machine-readable a site offers, so selectors are a last resort. */
+export interface FeedDiscoveryResult {
+  feeds: DiscoveredFeed[];
+  sitemaps: DiscoveredSitemap[];
+  recommendedAdapter: 'rss' | 'sitemap' | 'generic';
+  reason: string;
 }
 
 export type ScrapeTrigger = 'boot' | 'cron' | 'manual';

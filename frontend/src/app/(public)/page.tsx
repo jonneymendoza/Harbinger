@@ -140,7 +140,7 @@ export default function PublicPage() {
                     <h3 className="font-semibold text-slate-900 dark:text-white line-clamp-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{article.title}</h3>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{article.summary}</p>
                   </div>
-                  <div className="px-4 pb-4 flex items-center justify-between text-xs text-slate-400">
+                  <div className="px-4 pb-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <span>{article.sourceName}</span>
                     <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
                   </div>

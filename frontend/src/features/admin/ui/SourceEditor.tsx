@@ -2,8 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { Button, Input } from '@/shared/ui';
-import { Adapter, SourceFormValues, TestScrapeResult } from '../types';
-import { findAdapter, testScrape } from '../api/useSources';
+import {
+  Adapter,
+  DiscoveredFeed,
+  DiscoveredSitemap,
+  SourceFormValues,
+  TestScrapeResult,
+} from '../types';
+import { discoverFeeds, findAdapter, testScrape } from '../api/useSources';
 
 interface SourceEditorProps {
   adapters: Adapter[];
@@ -24,6 +30,17 @@ function isValidUrl(value: string): boolean {
   }
 }
 
+function Detail({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="shrink-0 text-red-800/80 dark:text-red-300/80">{label}:</dt>
+      <dd className={`min-w-0 break-words ${emphasis ? 'font-semibold text-red-900 dark:text-red-200' : 'text-red-800 dark:text-red-300'}`}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 export function SourceEditor({
   adapters,
   values,
@@ -38,6 +55,13 @@ export function SourceEditor({
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestScrapeResult | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [probe, setProbe] = useState<{
+    state: 'idle' | 'searching' | 'done' | 'error';
+    feeds: DiscoveredFeed[];
+    sitemaps: DiscoveredSitemap[];
+    message?: string;
+  }>({ state: 'idle', feeds: [], sitemaps: [] });
   const [touched, setTouched] = useState(false);
 
   const adapter = findAdapter(adapters, values.adapter);
@@ -83,6 +107,38 @@ export function SourceEditor({
     }
   };
 
+  const handleProbe = async () => {
+    const site = values.baseUrl.trim();
+    if (!isValidUrl(site)) {
+      setProbe({ state: 'error', feeds: [], sitemaps: [], message: 'Enter a valid http(s) URL first.' });
+      return;
+    }
+
+    setProbe({ state: 'searching', feeds: [], sitemaps: [] });
+    try {
+      const result = await discoverFeeds(site);
+      setProbe({
+        state: 'done',
+        feeds: result.feeds,
+        sitemaps: result.sitemaps,
+        message: result.reason,
+      });
+    } catch (err) {
+      setProbe({
+        state: 'error',
+        feeds: [],
+        sitemaps: [],
+        message: err instanceof Error ? err.message : 'Lookup failed',
+      });
+    }
+  };
+
+  /** Choosing a route replaces the Base URL, since that is what the adapter reads. */
+  const useRoute = (url: string, adapter: 'rss' | 'sitemap') => {
+    onChange({ ...values, baseUrl: url, adapter });
+    setProbe({ state: 'idle', feeds: [], sitemaps: [] });
+  };
+
   const handleTest = async () => {
     const url = testUrl.trim();
     if (!isValidUrl(url)) {
@@ -94,8 +150,14 @@ export function SourceEditor({
     setTesting(true);
     setTestError(null);
     setTestResult(null);
+    setShowDiagnostics(false);
     try {
-      setTestResult(await testScrape(url, values, requiresSelectors));
+      const result = await testScrape(url, values, requiresSelectors);
+      setTestResult(result);
+      // Open the detail automatically on failure — that is the moment the
+      // operator needs it, and hiding it behind a click is what made the old
+      // one-line error so unhelpful.
+      if (!result.ok) setShowDiagnostics(true);
     } catch (err) {
       setTestError(err instanceof Error ? err.message : 'Test scrape failed');
     } finally {
@@ -129,15 +191,113 @@ export function SourceEditor({
       </div>
 
       <div className="mt-4">
-        <Input
-          label="Base URL"
-          required
-          value={values.baseUrl}
-          onChange={(e) => set('baseUrl', e.target.value)}
-          error={show('baseUrl')}
-          hint="The listing page the scraper starts from"
-          placeholder="https://example.com/news"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+          <div className="flex-1">
+            <Input
+              label="Base URL"
+              required
+              value={values.baseUrl}
+              onChange={(e) => set('baseUrl', e.target.value)}
+              error={show('baseUrl')}
+              hint={
+                values.adapter === 'rss'
+                  ? 'The RSS or Atom feed to read'
+                  : values.adapter === 'sitemap'
+                    ? 'The sitemap.xml to read article URLs from'
+                    : 'The listing page the scraper starts from'
+              }
+              placeholder="https://example.com/news"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleProbe}
+            disabled={probe.state === 'searching'}
+            className="sm:mt-7"
+          >
+            {probe.state === 'searching' ? 'Checking…' : 'Check for feed / sitemap'}
+          </Button>
+        </div>
+
+        {/* Routes are offered, never applied automatically: most sites publish
+            several, and choosing silently would hide why a source carries what
+            it does. */}
+        {(probe.feeds.length > 0 || probe.sitemaps.length > 0) && (
+          <div className="mt-2 space-y-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+            {probe.feeds.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-900 dark:text-indigo-200">
+                  Feeds — best option
+                </p>
+                <ul className="space-y-1.5">
+                  {probe.feeds.map((feed) => (
+                    <li key={feed.url} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-indigo-900 dark:text-indigo-100">
+                          {feed.title}
+                        </span>
+                        <span className="block truncate text-xs text-indigo-800/80 dark:text-indigo-300/80">
+                          {feed.url} · {feed.itemCount} items
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => useRoute(feed.url, 'rss')}
+                      >
+                        Use feed
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {probe.sitemaps.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-900 dark:text-indigo-200">
+                  Sitemaps — reliable discovery, still loads each page
+                </p>
+                <ul className="space-y-1.5">
+                  {probe.sitemaps.map((sm) => (
+                    <li key={sm.url} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-indigo-900 dark:text-indigo-100">
+                          {sm.url}
+                        </span>
+                        <span className="block truncate text-xs text-indigo-800/80 dark:text-indigo-300/80">
+                          {sm.entryCount} {sm.isIndex ? 'child sitemaps' : 'URLs'}
+                          {sm.source === 'robots' ? ' · from robots.txt' : ''}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => useRoute(sm.url, 'sitemap')}
+                      >
+                        Use sitemap
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {probe.message && (
+          <p
+            className={`mt-2 text-xs ${
+              probe.state === 'error'
+                ? 'text-red-700 dark:text-red-400'
+                : 'text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            {probe.message}
+          </p>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -254,34 +414,88 @@ export function SourceEditor({
           </Button>
         </div>
 
-        {testResult && (
+        {testResult?.ok && testResult.article && (
           <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-400">
               Preview
             </p>
             <div className="flex gap-3">
-              {testResult.heroImage && (
+              {testResult.article.heroImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={testResult.heroImage}
+                  src={testResult.article.heroImage}
                   alt=""
                   className="h-20 w-32 shrink-0 rounded object-cover"
                 />
               )}
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-900 dark:text-white">
-                  {testResult.title || <span className="text-red-600">No title found</span>}
+                  {testResult.article.title || <span className="text-red-700">No title found</span>}
                 </p>
                 <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">
-                  {testResult.summary || 'No summary extracted'}
+                  {testResult.article.summary || 'No summary extracted'}
                 </p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                  {testResult.fullContent.length.toLocaleString()} chars ·{' '}
-                  {testResult.contentImages.length} image(s)
-                  {testResult.category ? ` · ${testResult.category}` : ''}
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  {testResult.article.fullContent.length.toLocaleString()} chars ·{' '}
+                  {testResult.article.contentImages.length} image(s)
+                  {testResult.article.category ? ` · ${testResult.article.category}` : ''}
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {testResult && !testResult.ok && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-500/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-300">
+              Test failed
+            </p>
+            <p className="mt-1 text-sm text-red-800 dark:text-red-300">{testResult.reason}</p>
+
+            <button
+              type="button"
+              onClick={() => setShowDiagnostics((v) => !v)}
+              aria-expanded={showDiagnostics}
+              className="mt-2 text-xs font-medium text-red-800 underline underline-offset-2 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 dark:text-red-300 dark:hover:text-red-200"
+            >
+              {showDiagnostics ? 'Hide details' : 'View details — what the scraper saw'}
+            </button>
+
+            {showDiagnostics && (
+              <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 border-t border-red-200 pt-3 text-xs sm:grid-cols-2 dark:border-red-500/30">
+                <Detail label="Page title" value={testResult.diagnostics.pageTitle || '(none)'} />
+                <Detail
+                  label="Rendered"
+                  value={`${testResult.diagnostics.renderedChars.toLocaleString()} chars HTML, ${testResult.diagnostics.visibleTextChars.toLocaleString()} visible`}
+                />
+                <Detail label="Paragraphs found" value={String(testResult.diagnostics.paragraphCount)} />
+                <Detail
+                  label="og:title / og:image"
+                  value={`${testResult.diagnostics.hasOgTitle ? 'yes' : 'no'} / ${testResult.diagnostics.hasOgImage ? 'yes' : 'no'}`}
+                />
+                {testResult.diagnostics.accessBlocked && (
+                  <Detail label="Access" value="Blocked by the site" emphasis />
+                )}
+                {testResult.diagnostics.botChallengeDetected && (
+                  <Detail label="Bot check" value="Served instead of the page" emphasis />
+                )}
+                {testResult.diagnostics.fetchError && (
+                  <Detail label="Fetch error" value={testResult.diagnostics.fetchError} emphasis />
+                )}
+                <Detail
+                  label="Selector matches"
+                  value={
+                    (['articleLink', 'content', 'title', 'image'] as const)
+                      .map((k) => {
+                        const n = testResult.diagnostics.selectorMatches[k];
+                        return n === null ? null : `${k}: ${n}`;
+                      })
+                      .filter(Boolean)
+                      .join(' · ') || 'none provided'
+                  }
+                />
+              </dl>
+            )}
           </div>
         )}
       </div>

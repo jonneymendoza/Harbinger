@@ -6,6 +6,7 @@ import { api } from '@/shared/api/client';
 import {
   Adapter,
   AdaptersResponse,
+  FeedDiscoveryResult,
   Source,
   SourceFormValues,
   TestScrapeResult,
@@ -124,6 +125,8 @@ export async function testScrape(
     url,
     name: values.name || 'Test Source',
     adapter: values.adapter,
+    // The RSS adapter resolves the item against this feed.
+    baseUrl: values.baseUrl,
     ...(requiresSelectors
       ? {
           articleLinkSelector: values.articleLinkSelector,
@@ -136,6 +139,21 @@ export async function testScrape(
 
   if (!res.success || !res.data) {
     throw new Error(res.error?.message || 'Test scrape failed');
+  }
+  return res.data;
+}
+
+/**
+ * Probes a site for feeds and sitemaps. Results are offered for the operator to
+ * choose from rather than applied automatically — most sites publish several,
+ * and picking one silently would hide why a source carries what it does.
+ */
+export async function discoverFeeds(url: string): Promise<FeedDiscoveryResult> {
+  const res = await api.auth.get<FeedDiscoveryResult>(
+    `/admin/sources/discover-feeds?url=${encodeURIComponent(url)}`,
+  );
+  if (!res.success || !res.data) {
+    throw new Error(res.error?.message || 'Feed lookup failed');
   }
   return res.data;
 }

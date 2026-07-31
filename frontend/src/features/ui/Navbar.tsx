@@ -3,6 +3,7 @@
 import { User, LogOut, Settings, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/features/auth/lib/AuthContext';
+import { ThemeToggle } from '@/features/theme-feature/ui/ThemeToggle';
 
 export default function Navbar() {
   const { status, isAdmin, triggerUpgradePrompt, logout } = useAuth();
@@ -17,6 +18,9 @@ export default function Navbar() {
 
         {/* Right-side controls */}
         <div className="flex items-center gap-3">
+          {/* Available to everyone, signed in or not */}
+          <ThemeToggle />
+
           {/* Admin nav entry — hidden for non-admins */}
           {isAdmin && (
             <Link

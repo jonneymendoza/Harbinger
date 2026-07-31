@@ -83,7 +83,7 @@
 **What this gives you:** Mongo has article documents. Verify by querying `db.articles.find()` directly — no HTTP endpoints exist yet.
 
 ### Tests
-- [x] Unit tests: contentCleaner (12), urlResolver (9), throttler (5), userAgentPool (4), playwrightScraper (6), newsService (4) = **40/40 passing**
+- [x] Unit tests: contentCleaner (12), urlResolver (9), throttler (5), userAgentPool (4), playwrightScraper (6), newsService (4) = **40/40 passing** (suite has since grown to 134 backend + 11 frontend)
 - [x] Vitest config with path aliases (`backend/vitest.config.ts`)
 
 ### Infrastructure
@@ -115,6 +115,7 @@
   - [x] `POST /api/admin/sources/test` — live test endpoint that spins up a temporary Playwright instance with the provided configuration
   - [x] `POST /api/admin/sources/run-scraper` — trigger the pipeline manually
   - [x] `GET /api/admin/sources/adapters` — available adapters and whether each needs CSS selectors
+  - [x] `GET /api/admin/sources/discover-feeds?url=` — probes a site for RSS/Atom feeds
   - [x] `GET /api/admin/sources/scrape-runs` — paginated history of scrape runs
 - [x] Global error handler — every failure returns `{success,data,error}` with the codes from `specs/api-endpoints.md §6` (401 for a missing/invalid token, 403 for authenticated-but-unprivileged)
 - [x] Route tests (`vitest` + `supertest`) — 67 tests covering auth codes per verb, pagination and clamping, source filtering, validation, cross-user isolation, and 500 propagation
@@ -150,40 +151,35 @@ source. Skeleton loading states per spec. Fully responsive across breakpoints.
 
 ---
 
-## Phase 5b: Dark / Light Mode Toggle [🔴 TODO]
+## Phase 5b: Dark / Light Mode Toggle [✅ COMPLETE]
 
-> More of this works than it appears. `next-themes` **is** wired in
-> `app/providers.tsx` with `attribute="class"` and `defaultTheme="system"`,
-> Tailwind uses the `class` strategy, and components carry `dark:` variants
-> throughout. Verified at runtime: with an OS dark preference the app renders
-> `<html class="dark">` with a slate-950 background. **Dark mode is already
-> live — it just silently follows the OS**, which is why it looks like the
-> feature is missing. What is actually absent is any way for a user to override
-> that, and any visual sign-off on either appearance.
+`next-themes` was already wired with `attribute="class"` and `defaultTheme="system"`,
+so the OS preference was honoured — but nothing let a user override it, and
+neither appearance had been checked.
 
-- [x] `ThemeProvider` wired in the root layout with `attribute="class"`, `defaultTheme="system"`
-- [x] `suppressHydrationWarning` on `<html>`
-- [x] System preference respected (confirmed: OS dark → `class="dark"`)
-- [ ] Remove the hardcoded `className="light"` on `<html>` in `app/layout.tsx` — `next-themes` overrides it at runtime, so it is only the pre-hydration default, but it makes light the flash-of-wrong-theme colour for dark users
-- [ ] `ThemeToggle` component (`features/theme-feature/ui/ThemeToggle.tsx`) — light / dark / system, persisted via `next-themes`. Use `mounted` state to avoid rendering the wrong icon before hydration
-- [ ] Mount the toggle in the nav bar (`features/ui/Navbar.tsx`)
-- [ ] Audit both themes for contrast and legibility across every surface:
-  - [ ] Feed grid, article cards, and skeleton placeholders
-  - [ ] Source filter pills — selected, unselected, hover, and focus states
-  - [ ] Pagination controls, including disabled states
-  - [ ] Article detail page, including `dangerouslySetInnerHTML` body content and `prose-invert`
-  - [ ] Login card, guest badge, and the upgrade prompt modal
-- [ ] Verify scraped article HTML stays readable in dark mode — this is the likeliest
-      problem area, since source markup carries its own inline colours that
-      `prose-invert` will not touch
+- [x] `ThemeToggle` (`features/theme-feature/ui/ThemeToggle.tsx`) — cycles light → dark → system, persisted by `next-themes`. `system` is kept as an explicit choice, not just an initial default, so a user can get back to following their OS
+- [x] Renders a same-size placeholder until mounted, since `next-themes` only knows the real theme on the client and would otherwise flash the wrong icon
+- [x] Mounted in the nav bar, available signed in or not
+- [x] Removed the hardcoded `className="light"` on `<html>` — it made light the flash-of-wrong-theme colour for anyone resolving to dark
+- [x] Contrast audited against WCAG AA across both themes on the feed, article page, login, bookmarks, admin dashboard and scrape logs — **0 failures remaining**
 
-**What this gives you:** A user-controllable theme switch, and both appearances
-signed off rather than merely written. The wiring is done, so this is a toggle
-component plus a visual audit.
+Fixed by the audit:
+- [x] Card meta strip (source · date) used `text-slate-400`, only **2.56:1** on white. Now `text-slate-500 dark:text-slate-400`
+- [x] Source filter count badge sat just under AA in both themes (4.34 light / 4.04 dark). Bumped one step each way
+- [x] Scrape log "needing attention" used `amber-600`, **3.19:1** on white. Now `amber-700 dark:text-amber-400`
+
+> **The predicted risk did not materialise.** Scraped article HTML was expected to
+> carry inline colours that `prose-invert` cannot override. It does not: across
+> all 40 stored articles there are 2 `style=` attributes and **zero** colour
+> declarations, `<font>` tags or background colours — the parsers never emit them.
+> The article page audits clean in both themes.
+
+**What this gives you:** A user-controllable theme switch, with both appearances
+measured rather than assumed.
 
 ---
 
-## Phase 6: Protected + Admin UI [🟡 IN PROGRESS]
+## Phase 6: Protected + Admin UI [✅ COMPLETE]
 
 ### Admin source management [✅ DONE]
 - [x] **Admin sign-in** — `POST /api/auth/login` verifies `passwordHash` against `provider: 'local'` accounts and issues a role-bearing token. Unblocks the whole phase: `ADMIN_USER`/`ADMIN_PASS` seed an admin, but OAuth can never reach it, so the Phase 4 admin endpoints previously needed a hand-minted JWT. Failures are indistinguishable between unknown account and wrong password, and the route has its own rate limit (10 per 15 min)
@@ -222,9 +218,32 @@ component plus a visual audit.
 - [x] `/admin/logs` — run table with expandable per-source detail, auto-refreshing every 30s
 - [x] A source that discovers **zero links** is flagged as degraded even though it raises no error. That is precisely how a silently broken adapter presents, and it is what went unnoticed with Arsenal
 
+### Sidebar navigation [✅ DONE]
+- [x] `app/(admin)/layout.tsx` — one shell for every `/admin/*` route. `AdminGuard` moved here, so a new admin screen is protected by existing rather than by remembering to wrap itself
+- [x] `AdminSidebar` with Sources and Scrape logs, plus "Back to feed". Active state via `usePathname`, with `/admin` matched exactly — it is a prefix of every admin route, so a `startsWith` check would mark it active on every page
+- [x] Vertical rail from `lg` up, horizontal strip below it. A drawer would need open/close state and a focus trap for two links
+- [x] Removed the ad-hoc cross-links the pages carried before
+
+> **Deliberately two items, not three.** `specs/admin-panel.md §4` lists
+> Dashboard → Sources → System Logs, but there is no Dashboard page and one that
+> duplicated Sources would be filler. Worth adding once it has something real to
+> show — last run status, per-source article counts — now that scrape runs are
+> persisted.
+
+### RSS adapter [✅ DONE]
+- [x] `rss` adapter reading RSS 2.0 and Atom — title, link, date, body, image and category, straight from the feed
+- [x] Never fetches the article page, so it works on sites that block scrapers but publish a feed, and costs one request per run instead of one per article
+- [x] Feed discovery: declared `<link rel="alternate">` first, then common paths. Candidates are fetched and parsed before being offered
+- [x] "Find RSS feed" in the source editor — results are **offered**, not auto-applied, since most sites publish several feeds
+
+> Added after TechPowerUp could not be scraped: every page request returns 403
+> from this server regardless of headers, waits or fingerprint masking, while
+> `/rss/news` serves 113 items happily. The feed is the sanctioned route, and
+> RSS being near-universal makes most news sites a two-field setup.
+
 ### Remaining
-- [ ] Sidebar navigation, Dashboard → Sources → System Logs (`specs/admin-panel.md §4`) — now worth doing, since there are two real destinations to move between
-- [ ] Dark mode toggle — tracked in [Phase 5b](#phase-5b-dark--light-mode-toggle--todo)
+- [x] Dark mode toggle — see [Phase 5b](#phase-5b-dark--light-mode-toggle--complete)
+- [ ] Dashboard screen (optional) — at-a-glance health: last run status, articles per source, active source count
 
 **What this gives you:** An administrator can sign in, manage scraping sources
 entirely through the UI — add, test, edit, activate and delete — and see what the
@@ -243,8 +262,8 @@ save articles and revisit them from a dedicated page.
 | 3 (Scraper) | ✅ Yes, with Phase 2 | Mongoose articles/sources collections ✓ |
 | 4 (API Endpoints) | No | Phase 2 (auth middleware), Phase 3 (data) |
 | 5 (Frontend Pages) | ✅ Yes, with Phase 4 | Frontend skeleton from Phase 1 ✓ |
-| 5b (Dark / Light Mode) | ✅ Yes, with Phase 6 | Surfaces to audit exist (Phase 5) |
-| 6 (Auth + Admin UI) | No | Phases 4 & 5 complete |
+| 5b (Dark / Light Mode) | — done | Surfaces to audit exist (Phase 5) ✓ |
+| 6 (Auth + Admin UI) | — done | Phases 4 & 5 complete ✓ |
 | 6a (Admin source management) | — done | Phase 4 admin endpoints ✓ |
 
 **Critical path:** 1 → 2 → 2b → 3 → 4 → 5 → 6 (5b can land any time after 5)
