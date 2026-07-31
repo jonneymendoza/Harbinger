@@ -12,6 +12,7 @@ import {
 } from '@infrastructure/scraper/adapters';
 import { runScrapeNow } from '@cron/scraperCron';
 import { ScrapeRunRepository } from '@infrastructure/repositories/scrapeRunRepository';
+import { discoverFeeds } from '@infrastructure/scraper/rss/feedDiscovery';
 
 const router = Router();
 
@@ -33,6 +34,50 @@ router.get('/adapters', (req: Request, res: Response) => {
     },
     error: null,
   });
+});
+
+/**
+ * GET /api/admin/sources/discover-feeds?url=
+ *
+ * Probes a site for RSS/Atom feeds and reports what it found, so the operator
+ * picks one rather than hunting for the path — or discovers there is none and
+ * falls back to CSS selectors.
+ *
+ * Deliberately a suggestion, not an automatic choice: most sites publish
+ * several feeds, and silently picking one would leave a source quietly carrying
+ * the wrong content with nothing on screen to explain why.
+ */
+router.get('/discover-feeds', async (req: Request, res: Response, next: NextFunction) => {
+  const url = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+
+  if (!url) {
+    return next(AppError.badRequest('Missing required query parameter: url'));
+  }
+  try {
+    new URL(url);
+  } catch {
+    return next(AppError.badRequest('Invalid URL format'));
+  }
+
+  const scraper = new PlaywrightScraper();
+  try {
+    // Plain HTTP throughout: feeds are static XML, and a site that blocks the
+    // rendered page often still serves its feed.
+    const feeds = await discoverFeeds(url, (target) => scraper.fetchHtml(target));
+
+    res.json({
+      success: true,
+      data: {
+        feeds,
+        recommendedAdapter: feeds.length > 0 ? 'rss' : 'generic',
+      },
+      error: null,
+    });
+  } catch (error) {
+    next(error);
+  } finally {
+    await scraper.destroy();
+  }
 });
 
 /**
@@ -329,7 +374,9 @@ router.post('/test', async (req: Request, res: Response, next: NextFunction) => 
       ? null
       : await scraper.scrapeArticle(url, {
           name: req.body.name || 'Test Source',
-          baseUrl: url,
+          // The RSS adapter resolves items against the configured feed, so the
+          // form's Base URL matters here — not just the URL under test.
+          baseUrl: req.body.baseUrl || url,
           adapter,
           ...selectors,
           isActive: true,

@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { Button, Input } from '@/shared/ui';
-import { Adapter, SourceFormValues, TestScrapeResult } from '../types';
-import { findAdapter, testScrape } from '../api/useSources';
+import { Adapter, DiscoveredFeed, SourceFormValues, TestScrapeResult } from '../types';
+import { discoverFeeds, findAdapter, testScrape } from '../api/useSources';
 
 interface SourceEditorProps {
   adapters: Adapter[];
@@ -50,6 +50,11 @@ export function SourceEditor({
   const [testError, setTestError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestScrapeResult | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [feedLookup, setFeedLookup] = useState<{
+    state: 'idle' | 'searching' | 'done' | 'error';
+    feeds: DiscoveredFeed[];
+    message?: string;
+  }>({ state: 'idle', feeds: [] });
   const [touched, setTouched] = useState(false);
 
   const adapter = findAdapter(adapters, values.adapter);
@@ -93,6 +98,39 @@ export function SourceEditor({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleFindFeeds = async () => {
+    const site = values.baseUrl.trim();
+    if (!isValidUrl(site)) {
+      setFeedLookup({ state: 'error', feeds: [], message: 'Enter a valid http(s) URL first.' });
+      return;
+    }
+
+    setFeedLookup({ state: 'searching', feeds: [] });
+    try {
+      const { feeds } = await discoverFeeds(site);
+      setFeedLookup({
+        state: 'done',
+        feeds,
+        message:
+          feeds.length === 0
+            ? 'No feed found. Use the generic adapter with CSS selectors instead.'
+            : undefined,
+      });
+    } catch (err) {
+      setFeedLookup({
+        state: 'error',
+        feeds: [],
+        message: err instanceof Error ? err.message : 'Feed lookup failed',
+      });
+    }
+  };
+
+  /** Switching to a feed replaces the Base URL, since that is what RSS reads. */
+  const useFeed = (feed: DiscoveredFeed) => {
+    onChange({ ...values, baseUrl: feed.url, adapter: 'rss' });
+    setFeedLookup({ state: 'idle', feeds: [] });
   };
 
   const handleTest = async () => {
@@ -147,15 +185,74 @@ export function SourceEditor({
       </div>
 
       <div className="mt-4">
-        <Input
-          label="Base URL"
-          required
-          value={values.baseUrl}
-          onChange={(e) => set('baseUrl', e.target.value)}
-          error={show('baseUrl')}
-          hint="The listing page the scraper starts from"
-          placeholder="https://example.com/news"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+          <div className="flex-1">
+            <Input
+              label="Base URL"
+              required
+              value={values.baseUrl}
+              onChange={(e) => set('baseUrl', e.target.value)}
+              error={show('baseUrl')}
+              hint={
+                values.adapter === 'rss'
+                  ? 'The RSS or Atom feed to read'
+                  : 'The listing page the scraper starts from'
+              }
+              placeholder="https://example.com/news"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleFindFeeds}
+            disabled={feedLookup.state === 'searching'}
+            className="sm:mt-7"
+          >
+            {feedLookup.state === 'searching' ? 'Searching…' : 'Find RSS feed'}
+          </Button>
+        </div>
+
+        {/* Feeds are offered, never applied automatically: most sites publish
+            several, and choosing silently would hide why a source carries what
+            it does. */}
+        {feedLookup.feeds.length > 0 && (
+          <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+            <p className="mb-2 text-xs font-medium text-indigo-900 dark:text-indigo-200">
+              {feedLookup.feeds.length === 1 ? 'Found a feed' : `Found ${feedLookup.feeds.length} feeds`} — using
+              one switches this source to the RSS adapter, so no CSS selectors are needed.
+            </p>
+            <ul className="space-y-1.5">
+              {feedLookup.feeds.map((feed) => (
+                <li key={feed.url} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-indigo-900 dark:text-indigo-100">
+                      {feed.title}
+                    </span>
+                    <span className="block truncate text-xs text-indigo-800/80 dark:text-indigo-300/80">
+                      {feed.url} · {feed.itemCount} items
+                      {feed.source === 'common-path' ? ' · found by probing' : ''}
+                    </span>
+                  </span>
+                  <Button type="button" className="px-2 py-1 text-xs" onClick={() => useFeed(feed)}>
+                    Use this feed
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {feedLookup.message && (
+          <p
+            className={`mt-2 text-xs ${
+              feedLookup.state === 'error'
+                ? 'text-red-700 dark:text-red-400'
+                : 'text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            {feedLookup.message}
+          </p>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">

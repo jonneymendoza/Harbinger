@@ -74,6 +74,20 @@ export interface TestScrapeResult {
   article: TestScrapeArticle | null;
 }
 
+/** A feed found by probing a site, offered for the operator to choose. */
+export interface DiscoveredFeed {
+  url: string;
+  title: string;
+  itemCount: number;
+  /** `declared` came from the page's own <link rel="alternate">. */
+  source: 'declared' | 'common-path' | 'provided';
+}
+
+export interface FeedDiscoveryResult {
+  feeds: DiscoveredFeed[];
+  recommendedAdapter: string;
+}
+
 export type ScrapeTrigger = 'boot' | 'cron' | 'manual';
 /** partial = the run completed but at least one source reported a problem. */
 export type ScrapeStatus = 'success' | 'partial' | 'failed';

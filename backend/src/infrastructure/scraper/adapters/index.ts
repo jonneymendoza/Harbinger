@@ -3,6 +3,7 @@ import { Source } from '@domains/news/interfaces/ISourceRepository';
 import { GenericAdapter } from './genericAdapter';
 import { ArsenalAdapter } from './arsenalAdapter';
 import { RsiCommLinkAdapter } from './rsiCommLinkAdapter';
+import { RssAdapter } from './rssAdapter';
 
 /**
  * Registry of scraping adapters.
@@ -12,7 +13,14 @@ import { RsiCommLinkAdapter } from './rsiCommLinkAdapter';
  * adapters are optimisations for sources we know well; `generic` is the
  * fallback and the default for anything an operator adds.
  */
-const ADAPTERS: ISourceAdapter[] = [new ArsenalAdapter(), new RsiCommLinkAdapter(), new GenericAdapter()];
+// `rss` before `generic`: it needs no selectors and suits most news sites,
+// so it is the better default suggestion when both could apply.
+const ADAPTERS: ISourceAdapter[] = [
+  new ArsenalAdapter(),
+  new RsiCommLinkAdapter(),
+  new RssAdapter(),
+  new GenericAdapter(),
+];
 
 export const DEFAULT_ADAPTER_KEY = 'generic';
 
@@ -57,4 +65,4 @@ export function suggestAdapterForUrl(url: string): AdapterDescriptor {
   return { ...(match ?? byKey.get(DEFAULT_ADAPTER_KEY)!).descriptor };
 }
 
-export { GenericAdapter, ArsenalAdapter, RsiCommLinkAdapter };
+export { GenericAdapter, ArsenalAdapter, RsiCommLinkAdapter, RssAdapter };

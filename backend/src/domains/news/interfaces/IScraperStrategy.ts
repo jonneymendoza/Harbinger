@@ -22,6 +22,11 @@ export interface ScrapedLink {
   thumbnailImage?: string | null;
   summary?: string;
   publishedAt?: Date | null;
+  /**
+   * Body supplied by the listing itself. Feeds publish the article inline, so
+   * the adapter can build the article without fetching the page at all.
+   */
+  contentHtml?: string;
 }
 
 export interface IScraperStrategy {

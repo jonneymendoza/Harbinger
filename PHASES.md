@@ -115,6 +115,7 @@
   - [x] `POST /api/admin/sources/test` — live test endpoint that spins up a temporary Playwright instance with the provided configuration
   - [x] `POST /api/admin/sources/run-scraper` — trigger the pipeline manually
   - [x] `GET /api/admin/sources/adapters` — available adapters and whether each needs CSS selectors
+  - [x] `GET /api/admin/sources/discover-feeds?url=` — probes a site for RSS/Atom feeds
   - [x] `GET /api/admin/sources/scrape-runs` — paginated history of scrape runs
 - [x] Global error handler — every failure returns `{success,data,error}` with the codes from `specs/api-endpoints.md §6` (401 for a missing/invalid token, 403 for authenticated-but-unprivileged)
 - [x] Route tests (`vitest` + `supertest`) — 67 tests covering auth codes per verb, pagination and clamping, source filtering, validation, cross-user isolation, and 500 propagation
@@ -228,6 +229,17 @@ measured rather than assumed.
 > duplicated Sources would be filler. Worth adding once it has something real to
 > show — last run status, per-source article counts — now that scrape runs are
 > persisted.
+
+### RSS adapter [✅ DONE]
+- [x] `rss` adapter reading RSS 2.0 and Atom — title, link, date, body, image and category, straight from the feed
+- [x] Never fetches the article page, so it works on sites that block scrapers but publish a feed, and costs one request per run instead of one per article
+- [x] Feed discovery: declared `<link rel="alternate">` first, then common paths. Candidates are fetched and parsed before being offered
+- [x] "Find RSS feed" in the source editor — results are **offered**, not auto-applied, since most sites publish several feeds
+
+> Added after TechPowerUp could not be scraped: every page request returns 403
+> from this server regardless of headers, waits or fingerprint masking, while
+> `/rss/news` serves 113 items happily. The feed is the sanctioned route, and
+> RSS being near-universal makes most news sites a two-field setup.
 
 ### Remaining
 - [x] Dark mode toggle — see [Phase 5b](#phase-5b-dark--light-mode-toggle--complete)

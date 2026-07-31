@@ -24,6 +24,12 @@ A form to add or modify scraping targets.
     *   `Adapter`: Which scraping strategy handles this source. Populated from
         `GET /api/admin/sources/adapters`, which returns each adapter's `key`,
         `label`, `description` and a `requiresSelectors` flag.
+    *   **Find RSS feed**: probes the Base URL for RSS/Atom feeds via
+        `GET /api/admin/sources/discover-feeds`, checking the page's declared
+        `<link rel="alternate">` tags first and then common feed paths. Every
+        candidate is fetched and parsed before being offered, so a suggestion is
+        never a dead link. Choosing one sets the Base URL to the feed and
+        switches the adapter to `rss`.
     *   `Article Limit`: Newest articles considered per run, overriding the global
         `SCRAPER_ARTICLE_LIMIT`. Optional. Needed for sources whose listings mix
         articles with other page types — RSI Comm-Link is ~45% articles, so it
@@ -36,6 +42,13 @@ A form to add or modify scraping targets.
 *   **Validation:** Real-time validation that URLs are well-formed `http(s)`, that
     the article limit is an integer in 1–200, and that the selector fields are
     present when — and only when — the chosen adapter needs them.
+
+> **Feeds are offered, not chosen.** Discovery deliberately presents what it
+> found rather than selecting automatically. Most sites publish several feeds —
+> news, reviews, per-article comments — and picking one silently would leave a
+> source quietly carrying the wrong content with nothing on screen to explain
+> why. Prefer `rss` where a feed exists: it needs no selectors, survives markup
+> changes, and works on sites that block scraping of their HTML.
 
 > **Adapter model:** scraping strategy is resolved per source from the `adapter`
 > field, so a new source can be added at runtime without a code change. The
@@ -62,6 +75,7 @@ To avoid saving broken selectors that would crash the hourly cron job, the Admin
 | Admin sign-in | `POST /api/auth/login` | Credential login; OAuth cannot reach the seeded admin |
 | Loading Source List | `GET /api/admin/sources` | `specs/api-endpoints.md` |
 | Loading Adapter List | `GET /api/admin/sources/adapters` | Drives the adapter picker and selector visibility |
+| Finding a feed | `GET /api/admin/sources/discover-feeds?url=` | Suggests RSS/Atom feeds for a site |
 | Saving New Source | `POST /api/admin/sources` | `specs/api-endpoints.md` |
 | Updating Source | `PUT /api/admin/sources/:id` | `specs/api-endpoints.md` |
 | Toggling Active State | `PATCH /api/admin/sources/:id/toggle` | `specs/api-endpoints.md` |
