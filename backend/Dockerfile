@@ -33,5 +33,8 @@ RUN npm ci --omit=dev
 # Copy compiled output from builder stage
 COPY --from=builder /usr/src/backend/dist ./dist
 
+# The OpenAPI spec is read at runtime to serve /api/docs.
+COPY SWAGGER.md ./
+
 EXPOSE 5000
 CMD ["node", "dist/server.js"]

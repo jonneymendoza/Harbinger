@@ -46,8 +46,9 @@ offers; selectors are the fallback, not the default.
 - **Rebuild the container you changed.** Editing backend code and rebuilding only `frontend-app` is an easy way to debug a fix that was never deployed.
 
 ## API Contract
-- **Swagger Docs:** All API endpoints are documented in `/backend/SWAGGER.md` (machine-readable OpenAPI YAML included).
-- **Rule:** Any time a backend route is amended, added, or removed, SWAGGER.md must be updated to match before the change is considered complete.
+- **Swagger Docs:** All API endpoints are documented in `/backend/SWAGGER.md`. The fenced ```yaml block in that file **is** the served spec — Swagger UI reads it at runtime and renders it at <http://localhost:8082/api/docs> (raw document at `/api/docs/openapi.json`; `SWAGGER_UI=false` disables it).
+- **Rule:** Any time a backend route is amended, added, or removed, SWAGGER.md must be updated to match before the change is considered complete. `tests/unit/openapi.test.ts` asserts the spec parses, that every documented route resolves its `$ref`s, and that the routes listed there exist — add new paths to that list.
+- **The YAML is the source of truth.** The prose sections above it are worked examples; they have gone stale before (documenting `POST /bookmarks/:articleId` when the route takes a body). Fix the YAML first.
 - **Response wrapper:** every response, success or failure, is `{ success, data, error }`. Error codes follow `specs/api-endpoints.md §6` — 401 for a missing or invalid token, 403 for authenticated-but-unprivileged.
 
 ## Testing

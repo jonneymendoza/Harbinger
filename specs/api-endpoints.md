@@ -183,6 +183,13 @@ This document defines the "contract" between the Backend Server and all clients 
 *   **Note:** `linksDiscovered: 0` with an empty `errors` array is a *failure* —
     it is how a silently broken adapter presents. Callers should surface it.
 
+## 5.1 Browsable documentation
+
+Swagger UI is served at `/api/docs`, rendered from the OpenAPI block in
+`backend/SWAGGER.md` — the same file, so the docs cannot drift from the spec.
+The raw document is at `/api/docs/openapi.json`. Set `SWAGGER_UI=false` to
+withhold it.
+
 ## 6. Error Code Map
 | HTTP Code | Internal Error Code | Meaning |
 | :--- | :--- | :--- |
