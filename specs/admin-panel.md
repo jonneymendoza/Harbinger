@@ -24,6 +24,12 @@ A form to add or modify scraping targets.
     *   `Adapter`: Which scraping strategy handles this source. Populated from
         `GET /api/admin/sources/adapters`, which returns each adapter's `key`,
         `label`, `description` and a `requiresSelectors` flag.
+    *   **Find RSS feed**: probes the Base URL for RSS/Atom feeds via
+        `GET /api/admin/sources/discover-feeds`, checking the page's declared
+        `<link rel="alternate">` tags first and then common feed paths. Every
+        candidate is fetched and parsed before being offered, so a suggestion is
+        never a dead link. Choosing one sets the Base URL to the feed and
+        switches the adapter to `rss`.
     *   `Article Limit`: Newest articles considered per run, overriding the global
         `SCRAPER_ARTICLE_LIMIT`. Optional. Needed for sources whose listings mix
         articles with other page types — RSI Comm-Link is ~45% articles, so it
@@ -37,6 +43,13 @@ A form to add or modify scraping targets.
     the article limit is an integer in 1–200, and that the selector fields are
     present when — and only when — the chosen adapter needs them.
 
+> **Feeds are offered, not chosen.** Discovery deliberately presents what it
+> found rather than selecting automatically. Most sites publish several feeds —
+> news, reviews, per-article comments — and picking one silently would leave a
+> source quietly carrying the wrong content with nothing on screen to explain
+> why. Prefer `rss` where a feed exists: it needs no selectors, survives markup
+> changes, and works on sites that block scraping of their HTML.
+
 > **Adapter model:** scraping strategy is resolved per source from the `adapter`
 > field, so a new source can be added at runtime without a code change. The
 > selector-driven `generic` adapter is the default and covers most sites; a site
@@ -45,11 +58,25 @@ A form to add or modify scraping targets.
 > line). Both current sources turned out to need that treatment.
 
 ### C. "Live Test" Scraper Tool (Crucial Feature)
-To avoid saving broken selectors that would crash the hourly cron job, the Admin Panel will include a **Test Connection** feature:
-1.  The admin enters proposed CSS selectors in the editor.
-2.  Clicking **"Test Scrape"** sends these selectors to a special backend endpoint (`POST /api/admin/sources/test`).
-3.  The Backend spins up a temporary Playwright instance, attempts to scrape *one* article using those la-hoc selectors, and returns the result.
-4.  **Frontend Result:** The admin sees a preview of the scraped title and image. If it's empty or wrong, the admin adjusts the selectors before clicking "Save."
+To avoid saving a configuration that would silently return nothing on the hourly
+job, the editor dry-runs it against a single URL:
+
+1.  The admin enters a candidate configuration — adapter, and CSS selectors where the adapter needs them.
+2.  Clicking **"Test Scrape"** sends it to `POST /api/admin/sources/test`.
+3.  The backend loads the page once, records what it saw, then attempts the extraction.
+4.  **On success:** a preview of the title, hero image, summary and content length.
+5.  **On failure:** a plain-language reason, plus a **"View details — what the scraper saw"** panel, expanded automatically since that is the moment it is needed.
+
+The details cover page title, rendered and visible size, paragraph count,
+`og:` tag presence, per-selector match counts, and whether the site served a
+bot-check or refused the request outright.
+
+> **A failure has to say why.** Reporting only that a scrape failed leaves the
+> admin guessing between a wrong selector, a listing page tested in place of an
+> article, and a site that refuses automated access — three problems with
+> nothing in common. The reason is chosen most-specific first, so a site block is
+> reported ahead of anything about selectors: no selector can match a page that
+> was never served.
 
 ## 4. UI/UX Design Guidelines
 *   **Layout:** A simple sidebar navigation (Dashboard $\rightarrow$ Sources $\rightarrow$ System Logs).
@@ -62,6 +89,7 @@ To avoid saving broken selectors that would crash the hourly cron job, the Admin
 | Admin sign-in | `POST /api/auth/login` | Credential login; OAuth cannot reach the seeded admin |
 | Loading Source List | `GET /api/admin/sources` | `specs/api-endpoints.md` |
 | Loading Adapter List | `GET /api/admin/sources/adapters` | Drives the adapter picker and selector visibility |
+| Finding a feed | `GET /api/admin/sources/discover-feeds?url=` | Suggests RSS/Atom feeds for a site |
 | Saving New Source | `POST /api/admin/sources` | `specs/api-endpoints.md` |
 | Updating Source | `PUT /api/admin/sources/:id` | `specs/api-endpoints.md` |
 | Toggling Active State | `PATCH /api/admin/sources/:id/toggle` | `specs/api-endpoints.md` |
